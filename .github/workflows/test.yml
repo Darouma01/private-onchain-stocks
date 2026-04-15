@@ -1,0 +1,45 @@
+name: CI
+
+permissions: {}
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  check:
+    name: Contracts and app
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Compile contracts with solcjs
+        run: >
+          npx solcjs --base-path . --include-path node_modules --include-path lib
+          --bin --abi -o build/solc
+          contracts/src/CAAPL3643Suite.sol
+          contracts/src/ConfidentialCAAPLToken.sol
+          test/ConfidentialCAAPLToken.t.sol

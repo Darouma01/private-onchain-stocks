@@ -1,0 +1,23 @@
+# Compiler files
+cache/
+out/
+build/
+
+# Ignores development broadcast logs
+!/broadcast
+/broadcast/*/31337/
+/broadcast/**/dry-run/
+
+# Dotenv file
+.env
+.env*.local
+
+# JavaScript dependencies and build outputs
+node_modules/
+.next/
+dist/
+coverage/
+tsconfig.tsbuildinfo
+
+# OS/editor noise
+.DS_Store

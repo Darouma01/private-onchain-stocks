@@ -1,0 +1,49 @@
+export const projectContext = {
+  name: "Private Onchain Stocks",
+  tokenName: "Confidential Apple Stock",
+  tokenSymbol: "cAAPL",
+  confidentialSymbol: "ccAAPL",
+  description:
+    "A protocol that tokenizes real-world equities such as Apple stock using ERC-3643 compliance and ERC-7984 confidential token pointers. Standard cAAPL is the regulated ERC-3643 asset. ccAAPL is the reversible confidential wrapper with hidden balances and transfer amounts.",
+  privacy:
+    "Balances and transfer amounts are stored as encrypted bytes32 handles. iExec Nox TEE computations verify confidential transfers, wrap, unwrap, and disclosure flows. Public UI must never expose individual confidential balances.",
+  compliance:
+    "Only verified KYC/AML addresses can hold or receive cAAPL exposure. Compliance rules include maximum investor balance, country restrictions, and holder-count limits.",
+};
+
+export function buildAssistantQuestion(question: string) {
+  return [
+    "You are the Web3 LLM assistant for Private Onchain Stocks.",
+    `Project: ${projectContext.description}`,
+    `Privacy model: ${projectContext.privacy}`,
+    `Compliance model: ${projectContext.compliance}`,
+    "Answer clearly for investors and developers. Do not claim individual confidential balances are visible. Explain that audit answers are informational and not financial advice.",
+    "",
+    `User question: ${question}`,
+  ].join("\n");
+}
+
+export function buildInsightsQuestion(payload: unknown) {
+  return [
+    "Summarize the following live on-chain aggregate data for the Private Onchain Stocks cAAPL protocol.",
+    "Never infer or reveal individual confidential balances. Treat encrypted amount handles as opaque.",
+    "Call out operational risk if data is missing or if activity looks unusual.",
+    "",
+    JSON.stringify(payload, null, 2),
+  ].join("\n");
+}
+
+export function buildAuditQuestion(input: string, inputType: "address" | "code") {
+  const subject =
+    inputType === "address"
+      ? `The user submitted this contract address or explorer reference: ${input}`
+      : `The user submitted this Solidity source code:\n\n${input}`;
+
+  return [
+    "Audit this contract for an investor considering cAAPL exposure.",
+    "Focus on smart-contract security, access control, reentrancy, compliance bypasses, ERC-3643 issues, ERC-7984 confidential-token issues, Nox TEE trust assumptions, and upgrade/admin risks.",
+    "Return a practical report with risk level, vulnerabilities, recommendations, and investor-facing caveats.",
+    "",
+    subject,
+  ].join("\n");
+}
