@@ -61,6 +61,7 @@ export function ConfidentialPortfolio() {
     abi: confidentialCAAPLAbi,
     functionName: "decryptBalance",
     args: address ? [address, "0x"] : undefined,
+    account: address,
     query: { enabled: false },
   });
 
