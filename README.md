@@ -166,6 +166,12 @@ CHAIN_ID=421614 npm run verify:arbiscan
 
 Recommended frontend host: Vercel.
 
+Public judge URL:
+
+```text
+https://private-onchain-stocks.vercel.app
+```
+
 Vercel settings:
 
 ```text

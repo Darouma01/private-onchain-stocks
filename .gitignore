@@ -15,9 +15,11 @@ build/
 # JavaScript dependencies and build outputs
 node_modules/
 .next/
+.vercel/
 dist/
 coverage/
 tsconfig.tsbuildinfo
 
 # OS/editor noise
 .DS_Store
+.vercel
