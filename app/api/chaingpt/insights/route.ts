@@ -35,13 +35,8 @@ export async function GET() {
     ]);
 
     const holderCount = complianceAddress ? await readHolderCount(client, complianceAddress) : undefined;
-    const fromBlock = blockNumber > 5_000n ? blockNumber - 5_000n : 0n;
-    const logs = await client.getLogs({
-      address: confidentialAddress,
-      event: confidentialTransferEventAbi[0],
-      fromBlock,
-      toBlock: blockNumber,
-    });
+    const fromBlock = blockNumber > 9n ? blockNumber - 9n : 0n;
+    const logs = await safeGetConfidentialTransferLogs(client, confidentialAddress, fromBlock, blockNumber);
 
     const recentActivity = logs
       .slice(-10)
@@ -61,7 +56,7 @@ export async function GET() {
       confidentialTransferCount: logs.length,
       recentActivity,
       privacyNote:
-        "Recent transfer activity is anonymized and uses encrypted amount handles only. No individual confidential balances are included.",
+        "Recent transfer activity scans the latest 10 blocks to stay compatible with free RPC plans. It is anonymized and uses encrypted amount handles only. No individual confidential balances are included.",
     };
 
     const chat = createGeneralChatClient();
@@ -82,4 +77,33 @@ export async function GET() {
 async function readHolderCount(client: ReturnType<typeof getPublicClient>, address: Address) {
   const compliance = getContract({ address, abi: complianceAbi, client });
   return compliance.read.holderCount();
+}
+
+async function safeGetConfidentialTransferLogs(
+  client: ReturnType<typeof getPublicClient>,
+  confidentialAddress: Address,
+  fromBlock: bigint,
+  toBlock: bigint,
+) {
+  try {
+    return await client.getLogs({
+      address: confidentialAddress,
+      event: confidentialTransferEventAbi[0],
+      fromBlock,
+      toBlock,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("eth_getLogs") && !message.includes("block range")) {
+      throw error;
+    }
+
+    const fallbackFromBlock = toBlock > 9n ? toBlock - 9n : 0n;
+    return client.getLogs({
+      address: confidentialAddress,
+      event: confidentialTransferEventAbi[0],
+      fromBlock: fallbackFromBlock,
+      toBlock,
+    });
+  }
 }
