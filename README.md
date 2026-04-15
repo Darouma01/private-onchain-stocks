@@ -121,10 +121,10 @@ CHAINGPT_API_KEY=
 RPC_URL=
 
 NEXT_PUBLIC_CHAIN_ID=421614
-NEXT_PUBLIC_CAAPL_TOKEN_ADDRESS=0xf20a8f2e9f4127c6e83aab89106d09d8c26af6a9
-NEXT_PUBLIC_CONFIDENTIAL_CAAPL_ADDRESS=0x136baba4f0037e2f42121bf3d2c0c117dbe7ae83
+NEXT_PUBLIC_CAAPL_TOKEN_ADDRESS=0xba06720b5ce2f442c8beb26b4b150b73dbc3dccc
+NEXT_PUBLIC_CONFIDENTIAL_CAAPL_ADDRESS=0xe274cda3a9b8afbd7ea34936ed73fbef43b36d57
 NEXT_PUBLIC_BLOCK_EXPLORER_URL=https://sepolia.arbiscan.io
-COMPLIANCE_CONTRACT_ADDRESS=0x44d4886856c2e2b06a3515fa37fa8e0781f252d5
+COMPLIANCE_CONTRACT_ADDRESS=0x6dc8e010da00687ea823c1283b3fa8c9ed5436db
 
 ARBITRUM_SEPOLIA_RPC_URL=
 ARBITRUM_ONE_RPC_URL=
@@ -291,15 +291,15 @@ The app never treats ccAAPL as a passive badge. The encrypted balance handle is 
 
 | Contract | Address | Explorer |
 | --- | --- | --- |
-| `DemoClaimIssuer` | `0xfa506a1ac1c5379776457eca3ffdf54658ab3a47` | [Arbiscan](https://sepolia.arbiscan.io/address/0xfa506a1ac1c5379776457eca3ffdf54658ab3a47) |
-| `CAAPLClaimTopicsRegistry` | `0x340e61a9a10dfce2b481f14c17eb95b029f42620` | [Arbiscan](https://sepolia.arbiscan.io/address/0x340e61a9a10dfce2b481f14c17eb95b029f42620) |
-| `CAAPLTrustedIssuersRegistry` | `0xa6757048c60e1a5d1b94c2cd6c6b067b71603f2b` | [Arbiscan](https://sepolia.arbiscan.io/address/0xa6757048c60e1a5d1b94c2cd6c6b067b71603f2b) |
-| `CAAPLIdentityRegistryStorage` | `0xead9dceb94b839159efac751218d0c3f7d1cb13f` | [Arbiscan](https://sepolia.arbiscan.io/address/0xead9dceb94b839159efac751218d0c3f7d1cb13f) |
-| `CAAPLIdentityRegistry` | `0xb2afb921aa8ce9f53f678782840216661f0d849d` | [Arbiscan](https://sepolia.arbiscan.io/address/0xb2afb921aa8ce9f53f678782840216661f0d849d) |
-| `CAAPLCompliance` | `0x44d4886856c2e2b06a3515fa37fa8e0781f252d5` | [Arbiscan](https://sepolia.arbiscan.io/address/0x44d4886856c2e2b06a3515fa37fa8e0781f252d5) |
-| `CAAPLToken` | `0xf20a8f2e9f4127c6e83aab89106d09d8c26af6a9` | [Arbiscan](https://sepolia.arbiscan.io/address/0xf20a8f2e9f4127c6e83aab89106d09d8c26af6a9) |
-| `DemoNoxConfidentialExecutor` | `0x997cd0d393fce9c3726ccdb02cc94f9b222f4182` | [Arbiscan](https://sepolia.arbiscan.io/address/0x997cd0d393fce9c3726ccdb02cc94f9b222f4182) |
-| `ConfidentialCAAPLToken` | `0x136baba4f0037e2f42121bf3d2c0c117dbe7ae83` | [Arbiscan](https://sepolia.arbiscan.io/address/0x136baba4f0037e2f42121bf3d2c0c117dbe7ae83) |
+| `DemoClaimIssuer` | `0x14d04e67f1aac60284e393bb1e691dd2537bdb1e` | [Arbiscan](https://sepolia.arbiscan.io/address/0x14d04e67f1aac60284e393bb1e691dd2537bdb1e) |
+| `CAAPLClaimTopicsRegistry` | `0x49e038450866157b3b0f790992690ece842602e0` | [Arbiscan](https://sepolia.arbiscan.io/address/0x49e038450866157b3b0f790992690ece842602e0) |
+| `CAAPLTrustedIssuersRegistry` | `0xfabcf2685608d173189ad754f70e17cc913e4f58` | [Arbiscan](https://sepolia.arbiscan.io/address/0xfabcf2685608d173189ad754f70e17cc913e4f58) |
+| `CAAPLIdentityRegistryStorage` | `0x3f64d310b88f8c89afd70cccd33094df7e7c3a91` | [Arbiscan](https://sepolia.arbiscan.io/address/0x3f64d310b88f8c89afd70cccd33094df7e7c3a91) |
+| `CAAPLIdentityRegistry` | `0xc2a2e617d94dce7805ae915e2e60f70980892439` | [Arbiscan](https://sepolia.arbiscan.io/address/0xc2a2e617d94dce7805ae915e2e60f70980892439) |
+| `CAAPLCompliance` | `0x6dc8e010da00687ea823c1283b3fa8c9ed5436db` | [Arbiscan](https://sepolia.arbiscan.io/address/0x6dc8e010da00687ea823c1283b3fa8c9ed5436db) |
+| `CAAPLToken` | `0xba06720b5ce2f442c8beb26b4b150b73dbc3dccc` | [Arbiscan](https://sepolia.arbiscan.io/address/0xba06720b5ce2f442c8beb26b4b150b73dbc3dccc) |
+| `DemoNoxConfidentialExecutor` | `0x67b72c4ce71b932a1f0bffbb96beb5460b966939` | [Arbiscan](https://sepolia.arbiscan.io/address/0x67b72c4ce71b932a1f0bffbb96beb5460b966939) |
+| `ConfidentialCAAPLToken` | `0xe274cda3a9b8afbd7ea34936ed73fbef43b36d57` | [Arbiscan](https://sepolia.arbiscan.io/address/0xe274cda3a9b8afbd7ea34936ed73fbef43b36d57) |
 
 #### Arbitrum One Mainnet
 

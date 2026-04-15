@@ -8,18 +8,18 @@ export const faucetUrl = "https://www.alchemy.com/faucets/arbitrum-sepolia";
 export const explorerUrl = process.env.NEXT_PUBLIC_BLOCK_EXPLORER_URL ?? "https://sepolia.arbiscan.io";
 
 export const caaplAddress = (
-  process.env.NEXT_PUBLIC_CAAPL_TOKEN_ADDRESS ?? "0xf20a8f2e9f4127c6e83aab89106d09d8c26af6a9"
+  process.env.NEXT_PUBLIC_CAAPL_TOKEN_ADDRESS ?? "0xba06720b5ce2f442c8beb26b4b150b73dbc3dccc"
 ) as `0x${string}`;
 
 export const confidentialCAAPLAddress = (
-  process.env.NEXT_PUBLIC_CONFIDENTIAL_CAAPL_ADDRESS ?? "0x136baba4f0037e2f42121bf3d2c0c117dbe7ae83"
+  process.env.NEXT_PUBLIC_CONFIDENTIAL_CAAPL_ADDRESS ?? "0xe274cda3a9b8afbd7ea34936ed73fbef43b36d57"
 ) as `0x${string}`;
 
 export const complianceAddress = (
-  process.env.COMPLIANCE_CONTRACT_ADDRESS ?? "0x44d4886856c2e2b06a3515fa37fa8e0781f252d5"
+  process.env.COMPLIANCE_CONTRACT_ADDRESS ?? "0x6dc8e010da00687ea823c1283b3fa8c9ed5436db"
 ) as `0x${string}`;
 
-export const demoNoxAddress = "0x997cd0d393fce9c3726ccdb02cc94f9b222f4182" as const;
+export const demoNoxAddress = "0x67b72c4ce71b932a1f0bffbb96beb5460b966939" as const;
 
 export const caaplAbi = parseAbi([
   "function balanceOf(address account) view returns (uint256)",
