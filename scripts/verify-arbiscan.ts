@@ -169,6 +169,9 @@ async function waitForVerification(guid: string) {
     if (payload.status === "1") {
       return;
     }
+    if (/already verified/i.test(payload.result)) {
+      return;
+    }
     if (!/pending/i.test(payload.result)) {
       throw new Error(`Verification failed: ${payload.message} ${payload.result}`);
     }
