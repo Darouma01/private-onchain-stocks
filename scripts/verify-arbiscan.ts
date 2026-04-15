@@ -180,17 +180,19 @@ async function waitForVerification(guid: string) {
 async function collectSources(entrypoints: string[]) {
   const sources: Record<string, { content: string }> = {};
 
-  async function visit(sourcePath: string) {
-    const normalizedPath = normalize(sourcePath).replaceAll("\\", "/");
-    if (sources[normalizedPath]) {
+  async function visit(sourceName: string, filePath = sourceName) {
+    const normalizedSourceName = normalize(sourceName).replaceAll("\\", "/");
+    const normalizedFilePath = normalize(filePath).replaceAll("\\", "/");
+    if (sources[normalizedSourceName]) {
       return;
     }
 
-    const content = await readFile(normalizedPath, "utf8");
-    sources[normalizedPath] = { content };
+    const content = await readFile(normalizedFilePath, "utf8");
+    sources[normalizedSourceName] = { content };
 
     for (const importPath of parseImports(content)) {
-      await visit(resolveImport(normalizedPath, importPath));
+      const resolved = resolveImport(normalizedSourceName, importPath);
+      await visit(resolved.sourceName, resolved.filePath);
     }
   }
 
@@ -207,16 +209,23 @@ function parseImports(content: string) {
 
 function resolveImport(fromPath: string, importPath: string) {
   if (importPath.startsWith("@openzeppelin/")) {
-    return join("node_modules", importPath).replaceAll("\\", "/");
+    return {
+      sourceName: importPath,
+      filePath: join("node_modules", importPath).replaceAll("\\", "/"),
+    };
   }
   if (importPath.startsWith(".")) {
-    return normalize(join(dirname(fromPath), importPath)).replaceAll("\\", "/");
+    const sourceName = normalize(join(dirname(fromPath), importPath)).replaceAll("\\", "/");
+    return {
+      sourceName,
+      filePath: sourceName.startsWith("@openzeppelin/") ? join("node_modules", sourceName).replaceAll("\\", "/") : sourceName,
+    };
   }
-  return importPath;
+  return { sourceName: importPath, filePath: importPath };
 }
 
 async function getCompilerVersion() {
-  return `v${solc.version()}`;
+  return `v${solc.version().replace(".Emscripten.clang", "")}`;
 }
 
 function encode(types: string[], values: unknown[]) {

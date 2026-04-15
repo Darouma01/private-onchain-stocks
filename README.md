@@ -36,15 +36,15 @@ Current Arbitrum Sepolia deployment, chain ID `421614`:
 
 | Contract | Address | Arbiscan |
 | --- | --- | --- |
-| `DemoClaimIssuer` | `0xffb96d7034ca5c0f6b8c864fd94eac94aa2ce94f` | `https://sepolia.arbiscan.io/address/0xffb96d7034ca5c0f6b8c864fd94eac94aa2ce94f` |
-| `CAAPLClaimTopicsRegistry` | `0x05886265d11062739180346b02a7de5e2e094a03` | `https://sepolia.arbiscan.io/address/0x05886265d11062739180346b02a7de5e2e094a03` |
-| `CAAPLTrustedIssuersRegistry` | `0x925ea8a02b4fa4d1d7ef5d6ebebb70cdb3bd94a1` | `https://sepolia.arbiscan.io/address/0x925ea8a02b4fa4d1d7ef5d6ebebb70cdb3bd94a1` |
-| `CAAPLIdentityRegistryStorage` | `0xf6bd6cf766f4ae1ee56283fcbbbd80fc07d80078` | `https://sepolia.arbiscan.io/address/0xf6bd6cf766f4ae1ee56283fcbbbd80fc07d80078` |
-| `CAAPLIdentityRegistry` | `0x3acf0012750d801b991daa04d105112cc4647801` | `https://sepolia.arbiscan.io/address/0x3acf0012750d801b991daa04d105112cc4647801` |
-| `CAAPLCompliance` | `0x510528e4ca174998cdf81e9136e54d2278ea0593` | `https://sepolia.arbiscan.io/address/0x510528e4ca174998cdf81e9136e54d2278ea0593` |
-| `CAAPLToken` | `0x216a6af734c8604e79f279213e42d80a1e38e670` | `https://sepolia.arbiscan.io/address/0x216a6af734c8604e79f279213e42d80a1e38e670` |
-| `DemoNoxConfidentialExecutor` | `0x3ba648bdb0a352a7d238ec78f14f3fdc15053270` | `https://sepolia.arbiscan.io/address/0x3ba648bdb0a352a7d238ec78f14f3fdc15053270` |
-| `ConfidentialCAAPLToken` | `0x8769428879b1d72b3f078cf445abc7f20e07d365` | `https://sepolia.arbiscan.io/address/0x8769428879b1d72b3f078cf445abc7f20e07d365` |
+| `DemoClaimIssuer` | `0xfa506a1ac1c5379776457eca3ffdf54658ab3a47` | `https://sepolia.arbiscan.io/address/0xfa506a1ac1c5379776457eca3ffdf54658ab3a47` |
+| `CAAPLClaimTopicsRegistry` | `0x340e61a9a10dfce2b481f14c17eb95b029f42620` | `https://sepolia.arbiscan.io/address/0x340e61a9a10dfce2b481f14c17eb95b029f42620` |
+| `CAAPLTrustedIssuersRegistry` | `0xa6757048c60e1a5d1b94c2cd6c6b067b71603f2b` | `https://sepolia.arbiscan.io/address/0xa6757048c60e1a5d1b94c2cd6c6b067b71603f2b` |
+| `CAAPLIdentityRegistryStorage` | `0xead9dceb94b839159efac751218d0c3f7d1cb13f` | `https://sepolia.arbiscan.io/address/0xead9dceb94b839159efac751218d0c3f7d1cb13f` |
+| `CAAPLIdentityRegistry` | `0xb2afb921aa8ce9f53f678782840216661f0d849d` | `https://sepolia.arbiscan.io/address/0xb2afb921aa8ce9f53f678782840216661f0d849d` |
+| `CAAPLCompliance` | `0x44d4886856c2e2b06a3515fa37fa8e0781f252d5` | `https://sepolia.arbiscan.io/address/0x44d4886856c2e2b06a3515fa37fa8e0781f252d5` |
+| `CAAPLToken` | `0xf20a8f2e9f4127c6e83aab89106d09d8c26af6a9` | `https://sepolia.arbiscan.io/address/0xf20a8f2e9f4127c6e83aab89106d09d8c26af6a9` |
+| `DemoNoxConfidentialExecutor` | `0x997cd0d393fce9c3726ccdb02cc94f9b222f4182` | `https://sepolia.arbiscan.io/address/0x997cd0d393fce9c3726ccdb02cc94f9b222f4182` |
+| `ConfidentialCAAPLToken` | `0x136baba4f0037e2f42121bf3d2c0c117dbe7ae83` | `https://sepolia.arbiscan.io/address/0x136baba4f0037e2f42121bf3d2c0c117dbe7ae83` |
 
 Demo identities:
 
