@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "compile:contracts": "solcjs --base-path . --include-path node_modules --include-path lib --bin --abi -o build/solc contracts/src/CAAPL3643Suite.sol contracts/src/ConfidentialCAAPLToken.sol contracts/src/DemoInfrastructure.sol test/ConfidentialCAAPLToken.t.sol",
+    "deploy:arbitrum-sepolia": "tsx scripts/deploy-arbitrum.ts",
+    "verify:arbiscan": "tsx scripts/verify-arbiscan.ts",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "echo \"No app test runner configured\""
@@ -30,6 +33,7 @@
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.3",
     "solc": "^0.8.34",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   }
 }
