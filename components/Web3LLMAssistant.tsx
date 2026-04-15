@@ -4,9 +4,9 @@ import { FormEvent, useState } from "react";
 import type { ChatMessage } from "@/types/ai";
 
 const starterQuestions = [
-  "What is cAAPL?",
-  "How do confidential transfers work?",
-  "Is this contract safe?",
+  "How do private ccAAPL payments work?",
+  "What unlocks VIP investor access?",
+  "How do confidential rewards work?",
 ];
 
 export function Web3LLMAssistant() {
@@ -53,7 +53,7 @@ export function Web3LLMAssistant() {
     <section className="section">
       <div>
         <h2>Web3 LLM Assistant</h2>
-        <p className="muted">Project-aware ChainGPT chat for cAAPL investors and builders.</p>
+        <p className="muted">Holder-only ChainGPT guidance for private payments, collateral, rewards, and VIP access.</p>
       </div>
 
       <div className="row">

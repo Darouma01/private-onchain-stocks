@@ -19,6 +19,20 @@ Confidential onchain stocks matter because real-world assets need more than publ
 
 iExec Nox and Confidential Tokens power this model by separating public settlement from private computation. Smart contracts hold encrypted balance and amount handles onchain. Nox-style trusted execution can create or disclose private values only when the authorized wallet requests it, allowing the dApp to support confidential balances, confidential transfers, and controlled disclosure.
 
+### Confidential Token Utility
+
+The confidential token is not a decorative integration. `ccAAPL` is the working asset that unlocks and powers the application:
+
+| Utility | What ccAAPL Does In The App |
+| --- | --- |
+| Private payments | Verified investors can send confidential stock payments with encrypted amount handles, so settlement occurs without exposing position sizes. |
+| Access control | Investor dashboard tools are gated by a non-zero encrypted ccAAPL balance handle. Non-holders can connect, verify KYC, and wrap, but holder tools stay locked. |
+| Private VIP tiers | A holder can request a Nox-backed balance reveal only for their own wallet session to check private balance thresholds such as the `50 ccAAPL` VIP tier. |
+| In-app currency and collateral | Wrapped stock balances are treated as the private collateral unit for protocol workflows and future DeFi integrations. |
+| Rewards | ccAAPL holder status defines eligibility for confidential dividend/reward distributions where reward amounts are encrypted and only the recipient can decrypt them. |
+
+Every app feature maps back to one of these utilities: wallet and KYC enable verified access, wrapping creates the utility token position, transfers provide private payments, dashboard gates enforce holder access, ChainGPT tools support holder due diligence, and balance reveal supports private tiers, collateral checks, and rewards.
+
 ## Tech Stack
 
 - iExec Nox Protocol: trusted execution layer for private balance disclosure and encrypted handle workflows
@@ -232,6 +246,8 @@ Redeploy the frontend after updating Vercel environment variables.
 4. Submit the confidential transfer transaction.
 5. The contract updates encrypted balance handles without displaying public transfer amounts as balances.
 
+This is the private payment utility of `ccAAPL`: verified investors can settle stock trades without exposing the transferred amount or updated position size publicly.
+
 ### Unwrap Back To Standard ERC-20
 
 1. Request or provide an encrypted amount handle for the confidential amount to unwrap.
@@ -241,13 +257,23 @@ Redeploy the frontend after updating Vercel environment variables.
 
 ### Use ChainGPT AI Features
 
-The dashboard includes ChainGPT-powered tools:
+The ChainGPT tools are holder-gated. A wallet must hold confidential cAAPL before the investor dashboard, auditor, and project assistant render. These features exist to support confidential token holders rather than acting as standalone AI widgets.
 
 - Smart contract auditor: reviews the deployed cAAPL contracts and summarizes risk areas.
 - Onchain insights: summarizes aggregate protocol activity without exposing individual private balances.
 - Web3 LLM assistant: answers project-specific questions using protocol context.
 
 Set `CHAINGPT_API_KEY` before using the AI features locally or in production.
+
+### Use Holder Access, VIP Tiers, Collateral, And Rewards
+
+1. Hold a non-zero encrypted ccAAPL balance to unlock investor dashboard tools.
+2. Use the Confidential Token Utility panel to inspect holder status.
+3. Request a private balance reveal only for the connected wallet session.
+4. If the revealed balance is at least `50 ccAAPL`, the app marks the wallet as VIP for that session.
+5. Use holder status as the basis for private collateral eligibility and confidential dividend/reward eligibility.
+
+The app never treats ccAAPL as a passive badge. The encrypted balance handle is the access-control primitive, the private transfer asset, the collateral eligibility signal, and the confidential reward eligibility signal.
 
 ## Smart Contract Documentation
 
@@ -287,6 +313,8 @@ Set `CHAINGPT_API_KEY` before using the AI features locally or in production.
 | `ConfidentialCAAPLToken` | `confidentialTransfer(address to, bytes32 amount, bytes data)` | Transfers confidential cAAPL using an encrypted amount handle. |
 | `ConfidentialCAAPLToken` | `getEncryptedBalance(address account)` | Returns the encrypted balance handle for an account. |
 | `ConfidentialCAAPLToken` | `decryptBalance(address owner, bytes noxData)` | Reveals an authorized wallet balance through the Nox disclosure path. |
+| Frontend holder gate | `useConfidentialAccess()` | Uses `getEncryptedBalance` to unlock holder-only dashboard tools for ccAAPL holders. |
+| Frontend VIP check | `Check Private VIP Tier` | Uses `decryptBalance` for the connected wallet only and compares the result with the private VIP threshold. |
 | `CAAPLIdentityRegistry` | `isVerified(address investor)` | Checks whether an investor is registered and eligible. |
 | `CAAPLCompliance` | `holderCount()` | Returns the current number of compliant token holders tracked by the compliance contract. |
 | `DemoNoxConfidentialExecutor` | `createHandle(uint256 value)` | Creates a demo encrypted handle for confidential amount workflows. |

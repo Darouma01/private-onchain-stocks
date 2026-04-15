@@ -244,6 +244,17 @@ textarea {
   margin-top: 4px;
 }
 
+.utility-card {
+  display: grid;
+  gap: 6px;
+}
+
+.utility-card p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
 .identity-row {
   align-items: center;
   border: 1px solid var(--line);

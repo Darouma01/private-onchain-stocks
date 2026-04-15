@@ -9,6 +9,8 @@ export const projectContext = {
     "Balances and transfer amounts are stored as encrypted bytes32 handles. iExec Nox TEE computations verify confidential transfers, wrap, unwrap, and disclosure flows. Public UI must never expose individual confidential balances.",
   compliance:
     "Only verified KYC/AML addresses can hold or receive cAAPL exposure. Compliance rules include maximum investor balance, country restrictions, and holder-count limits.",
+  utility:
+    "ccAAPL is the protocol's active utility token. It powers private payments between verified investors, holder-gated dashboard access, private VIP threshold checks, private collateral eligibility, and confidential dividend/reward eligibility.",
 };
 
 export function buildAssistantQuestion(question: string) {
@@ -17,7 +19,8 @@ export function buildAssistantQuestion(question: string) {
     `Project: ${projectContext.description}`,
     `Privacy model: ${projectContext.privacy}`,
     `Compliance model: ${projectContext.compliance}`,
-    "Answer clearly for investors and developers. Do not claim individual confidential balances are visible. Explain that audit answers are informational and not financial advice.",
+    `Token utility: ${projectContext.utility}`,
+    "Answer clearly for investors and developers. Tie every app feature back to private payments, access control, in-app collateral/currency, or confidential rewards. Do not claim individual confidential balances are visible. Explain that audit answers are informational and not financial advice.",
     "",
     `User question: ${question}`,
   ].join("\n");

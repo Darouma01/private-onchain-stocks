@@ -1,4 +1,6 @@
 import { ConfidentialPortfolio } from "@/components/ConfidentialPortfolio";
+import { ConfidentialTokenUtilityPanel } from "@/components/ConfidentialTokenUtilityPanel";
+import { InvestorDashboardGate } from "@/components/InvestorDashboardGate";
 import { KycStatusCard } from "@/components/KycStatusCard";
 import { OnChainDataInsightsPanel } from "@/components/OnChainDataInsightsPanel";
 import { SmartContractAuditorWidget } from "@/components/SmartContractAuditorWidget";
@@ -13,8 +15,8 @@ export default function HomePage() {
       <header className="header">
         <h1>Private Onchain Stocks</h1>
         <p>
-          Manage testnet cAAPL, check your eligibility, wrap into confidential cAAPL, and audit the contracts before
-          you interact.
+          Wrap compliant cAAPL into confidential ccAAPL for private payments, holder-gated investor access, private
+          collateral eligibility, and confidential rewards.
         </p>
       </header>
 
@@ -25,12 +27,28 @@ export default function HomePage() {
 
       <div className="primary-grid">
         <ConfidentialPortfolio />
-        <OnChainDataInsightsPanel />
+        <ConfidentialTokenUtilityPanel />
       </div>
 
       <div className="grid">
-        <SmartContractAuditorWidget />
-        <Web3LLMAssistant />
+        <InvestorDashboardGate
+          featureName="On-Chain Data Insights"
+          utility="Access control: aggregate investor analytics are available only after this wallet holds confidential cAAPL."
+        >
+          <OnChainDataInsightsPanel />
+        </InvestorDashboardGate>
+        <InvestorDashboardGate
+          featureName="Smart Contract Auditor"
+          utility="Access control: holder-only due diligence for confidential stock positions and collateral risk."
+        >
+          <SmartContractAuditorWidget />
+        </InvestorDashboardGate>
+        <InvestorDashboardGate
+          featureName="Web3 LLM Assistant"
+          utility="Rewards and in-app currency: holder-only guidance for private payments, collateral, dividends, and VIP tiers."
+        >
+          <Web3LLMAssistant />
+        </InvestorDashboardGate>
       </div>
     </main>
   );

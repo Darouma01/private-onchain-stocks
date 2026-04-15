@@ -24,7 +24,7 @@ export function KycStatusCard() {
     description = "Reading your KYC status from the ERC-3643 identity registry.";
   } else if (data) {
     label = "Verified";
-    description = "This wallet can hold cAAPL and use the confidential wrapper.";
+    description = "This wallet can hold cAAPL, wrap ccAAPL, and receive private stock payments.";
     className = "good";
   } else if (isConnected) {
     label = "Not verified";

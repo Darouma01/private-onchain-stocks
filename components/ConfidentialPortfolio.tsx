@@ -167,7 +167,7 @@ export function ConfidentialPortfolio() {
       <div className="row">
         <div>
           <h2>Your cAAPL</h2>
-          <p className="muted">Wrap standard cAAPL into confidential cAAPL, then reveal only your own balance.</p>
+          <p className="muted">Wrap cAAPL into ccAAPL for private payments, holder access, collateral, and rewards.</p>
         </div>
         {isConnected ? <span className="status-dot good">{shortAddress(address)}</span> : null}
       </div>
@@ -194,7 +194,7 @@ export function ConfidentialPortfolio() {
           <form className="action-panel" onSubmit={wrap}>
             <div>
               <strong>Wrap cAAPL</strong>
-              <p className="muted">Deposits standard cAAPL and mints confidential cAAPL with an encrypted balance handle.</p>
+              <p className="muted">Deposits standard cAAPL and unlocks the confidential token utilities in the dashboard.</p>
             </div>
             <input value={wrapAmount} onChange={(event) => setWrapAmount(event.target.value)} inputMode="decimal" />
             <button disabled={!wrapAmountWei}>Wrap</button>
@@ -203,7 +203,7 @@ export function ConfidentialPortfolio() {
           <div className="action-panel">
             <div>
               <strong>Reveal confidential balance</strong>
-              <p className="muted">Only your wallet can request this Nox-backed disclosure in the demo.</p>
+              <p className="muted">Only your wallet can request this Nox-backed disclosure for VIP and collateral checks.</p>
             </div>
             <button disabled={!hasEncryptedBalance || revealLoading} onClick={() => void reveal()}>
               {revealLoading ? "Revealing..." : "Reveal My Balance"}
@@ -217,7 +217,7 @@ export function ConfidentialPortfolio() {
           <form className="action-panel" onSubmit={confidentialTransfer}>
             <div>
               <strong>Confidential transfer</strong>
-              <p className="muted">Creates an encrypted amount handle. Amounts are never displayed as public balances.</p>
+              <p className="muted">Settle a private stock payment with a verified investor without exposing the amount.</p>
             </div>
             <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Recipient wallet" />
             <input value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} inputMode="decimal" />

@@ -35,7 +35,7 @@ export function OnChainDataInsightsPanel() {
       <div className="row">
         <div>
           <h2>On-Chain Data Insights</h2>
-          <p className="muted">Aggregate cAAPL metrics and anonymized confidential transfer activity.</p>
+          <p className="muted">Holder-only aggregate metrics for private payments, collateral activity, and reward readiness.</p>
         </div>
         <button disabled={loading} onClick={loadInsights}>
           {loading ? "Refreshing..." : "Refresh"}

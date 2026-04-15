@@ -45,7 +45,7 @@ export function SmartContractAuditorWidget() {
       <div className="row">
         <div>
           <h2>Smart Contract Auditor</h2>
-          <p className="muted">Paste verified Solidity code or a contract address before investing.</p>
+          <p className="muted">Holder-only due diligence for confidential stock collateral, rewards, and transfer risk.</p>
         </div>
         {result.report ? <RiskPill level={result.riskLevel} /> : null}
       </div>
