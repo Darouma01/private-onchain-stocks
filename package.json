@@ -21,10 +21,12 @@
     "@chaingpt/generalchat": "^0.0.17",
     "@chaingpt/smartcontractauditor": "^0.0.2",
     "@openzeppelin/contracts": "^5.2.0",
+    "@tanstack/react-query": "^5.99.0",
     "next": "^16.2.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "viem": "^2.47.17"
+    "viem": "^2.47.17",
+    "wagmi": "^3.6.1"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
