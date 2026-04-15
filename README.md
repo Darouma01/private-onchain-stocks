@@ -33,6 +33,14 @@ The confidential token is not a decorative integration. `ccAAPL` is the working 
 
 Every app feature maps back to one of these utilities: wallet and KYC enable verified access, wrapping creates the utility token position, transfers provide private payments, dashboard gates enforce holder access, ChainGPT tools support holder due diligence, and balance reveal supports private tiers, collateral checks, and rewards.
 
+The current contract implementation enforces those utilities on-chain:
+
+- `confidentialTransfer` emits only encrypted amount handles.
+- `settleStockTrade` atomically settles a confidential token-for-token trade across two confidential stock tokens.
+- `hasMinimumBalance` checks encrypted balance thresholds without returning the actual balance.
+- `distributeDividend` credits encrypted holder dividend amounts and emits holder-only distribution events without plaintext amounts.
+- `verifyCollateral` returns a TEE-authenticated collateral sufficiency proof for external DeFi integrations.
+
 ## Tech Stack
 
 - iExec Nox Protocol: trusted execution layer for private balance disclosure and encrypted handle workflows
@@ -311,9 +319,13 @@ The app never treats ccAAPL as a passive badge. The encrypted balance handle is 
 | `ConfidentialCAAPLToken` | `wrap(uint256 plaintextAmount, bytes noxData)` | Escrows standard cAAPL and creates confidential cAAPL balance state. |
 | `ConfidentialCAAPLToken` | `unwrap(bytes32 encryptedAmount, bytes noxData)` | Converts confidential cAAPL back into standard cAAPL. |
 | `ConfidentialCAAPLToken` | `confidentialTransfer(address to, bytes32 amount, bytes data)` | Transfers confidential cAAPL using an encrypted amount handle. |
+| `ConfidentialCAAPLToken` | `settleStockTrade(address counterparty, address receiveToken, bytes32 encryptedPayAmount, bytes32 encryptedReceiveAmount, bytes payNoxData, bytes receiveNoxData)` | Atomically settles a confidential stock-for-stock trade across two confidential token contracts. |
+| `ConfidentialCAAPLToken` | `hasMinimumBalance(address user, uint256 encryptedThreshold)` | Returns only whether a user meets an encrypted threshold; it does not reveal the user balance. |
+| `ConfidentialCAAPLToken` | `distributeDividend(bytes[] encryptedAmounts, address[] holders)` | Distributes encrypted dividend amounts to holders and emits no plaintext dividend amount. |
+| `ConfidentialCAAPLToken` | `verifyCollateral(address user)` | Returns a TEE-authenticated proof that a user has sufficient confidential stock collateral. |
 | `ConfidentialCAAPLToken` | `getEncryptedBalance(address account)` | Returns the encrypted balance handle for an account. |
 | `ConfidentialCAAPLToken` | `decryptBalance(address owner, bytes noxData)` | Reveals an authorized wallet balance through the Nox disclosure path. |
-| Frontend holder gate | `useConfidentialAccess()` | Uses `getEncryptedBalance` to unlock holder-only dashboard tools for ccAAPL holders. |
+| Frontend holder gate | `useConfidentialAccess()` | Uses `hasMinimumBalance` with an encrypted threshold to unlock holder-only dashboard tools for ccAAPL holders. |
 | Frontend VIP check | `Check Private VIP Tier` | Uses `decryptBalance` for the connected wallet only and compares the result with the private VIP threshold. |
 | `CAAPLIdentityRegistry` | `isVerified(address investor)` | Checks whether an investor is registered and eligible. |
 | `CAAPLCompliance` | `holderCount()` | Returns the current number of compliant token holders tracked by the compliance contract. |

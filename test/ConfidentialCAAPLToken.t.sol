@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "../lib/forge-std/src/Test.sol";
+import {Vm} from "../lib/forge-std/src/Vm.sol";
 import {
     CAAPLToken,
     CAAPLCompliance,
@@ -146,6 +147,61 @@ contract MockNoxExecutor is INoxConfidentialExecutor {
         return valueOf[balanceHandle];
     }
 
+    /// @inheritdoc INoxConfidentialExecutor
+    function hasMinimumBalance(
+        address token,
+        address owner,
+        address requester,
+        bytes32 balanceHandle,
+        bytes32 thresholdHandle
+    ) external view override returns (bool allowed) {
+        token;
+        owner;
+        requester;
+        return valueOf[balanceHandle] >= valueOf[thresholdHandle];
+    }
+
+    /// @inheritdoc INoxConfidentialExecutor
+    function verifyDividendDistribution(
+        address token,
+        address[] calldata holders,
+        bytes32[] calldata encryptedAmounts,
+        bytes32[] calldata holderBalanceHandles,
+        bytes32 totalSupplyBefore,
+        bytes calldata data
+    ) external override returns (DividendResult memory result) {
+        token;
+        data;
+        require(holders.length == encryptedAmounts.length, "TEE: amount length");
+        require(holders.length == holderBalanceHandles.length, "TEE: balance length");
+
+        result.holderBalancesAfter = new bytes32[](holders.length);
+        uint256 totalSupply = valueOf[totalSupplyBefore];
+
+        for (uint256 i = 0; i < holders.length; i++) {
+            uint256 dividendAmount = valueOf[encryptedAmounts[i]];
+            require(dividendAmount > 0, "TEE: zero dividend");
+            result.holderBalancesAfter[i] = _newHandle(valueOf[holderBalanceHandles[i]] + dividendAmount);
+            totalSupply += dividendAmount;
+        }
+
+        result.totalSupplyAfter = _newHandle(totalSupply);
+        result.nonce = nextNonce++;
+        result.deadline = uint48(block.timestamp + 1 hours);
+    }
+
+    /// @inheritdoc INoxConfidentialExecutor
+    function verifyCollateral(
+        address token,
+        address owner,
+        address requester,
+        bytes32 balanceHandle
+    ) external view override returns (bytes memory proof) {
+        uint256 balance = valueOf[balanceHandle];
+        require(balance > 0, "TEE: insufficient collateral");
+        return abi.encode(block.chainid, token, owner, requester, balanceHandle, keccak256("COLLATERAL_SUFFICIENT"));
+    }
+
     /// @notice Creates a fresh handle and associates it with a plaintext test value.
     /// @param value The plaintext value.
     /// @return handle The generated pointer.
@@ -188,7 +244,21 @@ contract ConfidentialCAAPLTokenTest is Test {
     ConfidentialCAAPLToken internal confidential;
     CAAPLCompliance internal compliance;
     CAAPLIdentityRegistry internal identities;
+    MockClaimIssuer internal claimIssuer;
     MockNoxExecutor internal nox;
+
+    event ConfidentialTransfer(address indexed from, address indexed to, bytes32 indexed amount);
+    event StockTradeSettled(
+        bytes32 indexed tradeId,
+        address indexed initiator,
+        address indexed counterparty,
+        address payToken,
+        address receiveToken,
+        bytes32 encryptedPayAmount,
+        bytes32 encryptedReceiveAmount
+    );
+    event DividendDistributed(uint256 indexed distributionId, address indexed holder, bytes32 indexed encryptedAmount);
+    event CollateralVerified(address indexed user, bytes32 indexed balanceHandle);
 
     /// @notice Deploys the ERC-3643 cAAPL stack and the ERC-7984 confidential wrapper.
     function setUp() public {
@@ -197,12 +267,12 @@ contract ConfidentialCAAPLTokenTest is Test {
         CAAPLClaimTopicsRegistry topics = new CAAPLClaimTopicsRegistry(owner);
         CAAPLTrustedIssuersRegistry issuers = new CAAPLTrustedIssuersRegistry(owner);
         CAAPLIdentityRegistryStorage storage_ = new CAAPLIdentityRegistryStorage(owner);
-        MockClaimIssuer issuer = new MockClaimIssuer();
+        claimIssuer = new MockClaimIssuer();
 
         topics.addClaimTopic(KYC_TOPIC);
         uint256[] memory issuerTopics = new uint256[](1);
         issuerTopics[0] = KYC_TOPIC;
-        issuers.addTrustedIssuer(address(issuer), issuerTopics);
+        issuers.addTrustedIssuer(address(claimIssuer), issuerTopics);
 
         identities = new CAAPLIdentityRegistry(owner, issuers, topics, storage_);
         storage_.bindIdentityRegistry(address(identities));
@@ -216,9 +286,9 @@ contract ConfidentialCAAPLTokenTest is Test {
 
         caapl.addAgent(owner);
         identities.grantRole(identities.AGENT_ROLE(), owner);
-        _verify(alice, address(0xA1), issuer);
-        _verify(bob, address(0xB1), issuer);
-        _verify(address(confidential), address(0xC1), issuer);
+        _verify(alice, address(0xA1), claimIssuer);
+        _verify(bob, address(0xB1), claimIssuer);
+        _verify(address(confidential), address(0xC1), claimIssuer);
 
         caapl.mint(alice, 1_000 ether);
 
@@ -264,12 +334,140 @@ contract ConfidentialCAAPLTokenTest is Test {
 
         bytes32 transferHandle = nox.createHandle(25 ether);
 
+        vm.expectEmit(true, true, true, false, address(confidential));
+        emit ConfidentialTransfer(alice, bob, transferHandle);
+
         vm.prank(alice);
         bytes32 actualAmount = confidential.confidentialTransfer(bob, transferHandle, "");
 
         assertEq(actualAmount, transferHandle);
         assertEq(nox.valueOf(confidential.getEncryptedBalance(alice)), 75 ether);
         assertEq(nox.valueOf(confidential.getEncryptedBalance(bob)), 25 ether);
+    }
+
+    /// @notice Verifies transfer logs include only encrypted handles and never plaintext amounts.
+    function testConfidentialTransferLogsDoNotExposePlaintextAmount() public {
+        vm.prank(alice);
+        confidential.wrap(100 ether, "");
+
+        bytes32 transferHandle = nox.createHandle(25 ether);
+        bytes32 plaintextAmount = bytes32(uint256(25 ether));
+
+        vm.recordLogs();
+        vm.prank(alice);
+        confidential.confidentialTransfer(bob, transferHandle, "");
+
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        bool sawEncryptedHandle;
+
+        for (uint256 i = 0; i < entries.length; i++) {
+            for (uint256 j = 0; j < entries[i].topics.length; j++) {
+                assertTrue(entries[i].topics[j] != plaintextAmount);
+                if (entries[i].topics[j] == transferHandle) {
+                    sawEncryptedHandle = true;
+                }
+            }
+            assertFalse(_containsWord(entries[i].data, plaintextAmount));
+        }
+
+        assertTrue(sawEncryptedHandle);
+    }
+
+    /// @notice Verifies private access control can check a threshold without revealing the balance.
+    function testHasMinimumBalanceUsesEncryptedThreshold() public {
+        vm.prank(alice);
+        confidential.wrap(100 ether, "");
+
+        bytes32 holderThreshold = nox.createHandle(50 ether);
+        bytes32 vipThreshold = nox.createHandle(150 ether);
+
+        assertTrue(confidential.hasMinimumBalance(alice, uint256(holderThreshold)));
+        assertFalse(confidential.hasMinimumBalance(alice, uint256(vipThreshold)));
+    }
+
+    /// @notice Verifies confidential dividends update holder balances and emit no plaintext reward amounts.
+    function testDistributeDividendUsesEncryptedAmounts() public {
+        vm.prank(alice);
+        confidential.wrap(100 ether, "");
+
+        bytes32 aliceDividend = nox.createHandle(7 ether);
+        bytes32 bobDividend = nox.createHandle(3 ether);
+
+        address[] memory holders = new address[](2);
+        holders[0] = alice;
+        holders[1] = bob;
+
+        bytes[] memory amounts = new bytes[](2);
+        amounts[0] = abi.encode(aliceDividend);
+        amounts[1] = abi.encode(bobDividend);
+
+        vm.expectEmit(true, true, true, false, address(confidential));
+        emit DividendDistributed(1, alice, aliceDividend);
+        vm.expectEmit(true, true, true, false, address(confidential));
+        emit DividendDistributed(1, bob, bobDividend);
+
+        uint256 distributionId = confidential.distributeDividend(amounts, holders);
+
+        assertEq(distributionId, 1);
+        assertEq(nox.valueOf(confidential.getEncryptedBalance(alice)), 107 ether);
+        assertEq(nox.valueOf(confidential.getEncryptedBalance(bob)), 3 ether);
+    }
+
+    /// @notice Verifies collateral proof generation returns TEE-bound proof bytes without exposing balance in logs.
+    function testVerifyCollateralReturnsProof() public {
+        vm.prank(alice);
+        confidential.wrap(100 ether, "");
+
+        bytes32 balanceHandle = confidential.getEncryptedBalance(alice);
+
+        vm.expectEmit(true, true, false, false, address(confidential));
+        emit CollateralVerified(alice, balanceHandle);
+
+        bytes memory proof = confidential.verifyCollateral(alice);
+        assertGt(proof.length, 0);
+
+        (uint256 proofChainId, address token, address user, address requester, bytes32 proofHandle, bytes32 proofType) =
+            abi.decode(proof, (uint256, address, address, address, bytes32, bytes32));
+
+        assertEq(proofChainId, block.chainid);
+        assertEq(token, address(confidential));
+        assertEq(user, alice);
+        assertEq(requester, address(this));
+        assertEq(proofHandle, balanceHandle);
+        assertEq(proofType, keccak256("COLLATERAL_SUFFICIENT"));
+    }
+
+    /// @notice Verifies a confidential stock-for-stock trade settles both token legs atomically.
+    function testSettleStockTradeSwapsTwoConfidentialTokensAtomically() public {
+        vm.startPrank(owner);
+        ConfidentialCAAPLToken confidentialUsd = new ConfidentialCAAPLToken(caapl, nox, "ipfs://confidential-usdc");
+        _verify(address(confidentialUsd), address(0xC2), claimIssuer);
+        caapl.mint(bob, 1_000 ether);
+        vm.stopPrank();
+
+        vm.prank(bob);
+        caapl.approve(address(confidentialUsd), type(uint256).max);
+
+        vm.prank(alice);
+        confidential.wrap(100 ether, "");
+
+        vm.prank(bob);
+        confidentialUsd.wrap(200 ether, "");
+
+        vm.prank(bob);
+        confidentialUsd.setOperator(address(confidential), uint48(block.timestamp + 1 hours));
+
+        bytes32 payHandle = nox.createHandle(10 ether);
+        bytes32 receiveHandle = nox.createHandle(25 ether);
+
+        vm.prank(alice);
+        bytes32 tradeId = confidential.settleStockTrade(bob, address(confidentialUsd), payHandle, receiveHandle, "", "");
+
+        assertTrue(tradeId != bytes32(0));
+        assertEq(nox.valueOf(confidential.getEncryptedBalance(alice)), 90 ether);
+        assertEq(nox.valueOf(confidential.getEncryptedBalance(bob)), 10 ether);
+        assertEq(nox.valueOf(confidentialUsd.getEncryptedBalance(bob)), 175 ether);
+        assertEq(nox.valueOf(confidentialUsd.getEncryptedBalance(alice)), 25 ether);
     }
 
     /// @notice Verifies owner-only Nox decryption of an encrypted balance handle.
@@ -322,5 +520,22 @@ contract ConfidentialCAAPLTokenTest is Test {
     function _verify(address wallet, address identity, MockClaimIssuer issuer) internal {
         identities.registerIdentity(wallet, identity, 840);
         identities.addClaim(wallet, KYC_TOPIC, address(issuer), bytes("sig"), bytes("claim"));
+    }
+
+    /// @notice Returns true if a log data blob contains a 32-byte word.
+    function _containsWord(bytes memory data, bytes32 word) internal pure returns (bool found) {
+        if (data.length < 32) {
+            return false;
+        }
+
+        for (uint256 offset = 0; offset + 32 <= data.length; offset += 32) {
+            bytes32 candidate;
+            assembly {
+                candidate := mload(add(add(data, 0x20), offset))
+            }
+            if (candidate == word) {
+                return true;
+            }
+        }
     }
 }

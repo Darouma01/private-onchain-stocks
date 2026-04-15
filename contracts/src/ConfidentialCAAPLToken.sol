@@ -24,6 +24,26 @@ interface IERC7984Receiver {
         returns (bytes32 success);
 }
 
+/// @notice Receiver interface used to settle the second leg of an atomic confidential stock trade.
+interface IConfidentialStockTradeReceiver {
+    /// @notice Settles the incoming leg of an atomic confidential stock trade.
+    /// @param operator The token contract that initiated the trade.
+    /// @param from The counterparty debited on this token.
+    /// @param to The original trade initiator credited on this token.
+    /// @param amount The encrypted amount pointer for this token leg.
+    /// @param tradeId The cross-token trade id.
+    /// @param data Nox proof and encrypted state transition data for this token.
+    /// @return actualAmount The encrypted amount pointer accepted for this leg.
+    function settleIncomingStockTrade(
+        address operator,
+        address from,
+        address to,
+        bytes32 amount,
+        bytes32 tradeId,
+        bytes calldata data
+    ) external returns (bytes32 actualAmount);
+}
+
 /// @notice ERC-7984 confidential fungible token interface.
 interface IERC7984 {
     /// @notice Emitted whenever confidential tokens move, including zero-value transfers and mints/burns.
@@ -181,6 +201,14 @@ interface INoxConfidentialExecutor {
         uint48 deadline;
     }
 
+    /// @notice Result of a confidential dividend distribution.
+    struct DividendResult {
+        bytes32[] holderBalancesAfter;
+        bytes32 totalSupplyAfter;
+        uint256 nonce;
+        uint48 deadline;
+    }
+
     /// @notice Verifies a Nox TEE proof for a confidential transfer.
     /// @dev Nox decrypts amount and current balance handles inside the TEE, checks sufficient balance,
     /// checks ERC-3643 identity/compliance predicates supplied by the wrapper, computes the new encrypted
@@ -262,10 +290,55 @@ interface INoxConfidentialExecutor {
         bytes32 balanceHandle,
         bytes calldata data
     ) external view returns (uint256 plaintextBalance);
+
+    /// @notice Privately checks whether a holder balance meets an encrypted threshold.
+    /// @param token The confidential token contract.
+    /// @param owner The holder being checked.
+    /// @param requester The address requesting the access decision.
+    /// @param balanceHandle The encrypted balance pointer.
+    /// @param thresholdHandle The encrypted threshold pointer.
+    /// @return allowed True when the private balance satisfies the threshold.
+    function hasMinimumBalance(
+        address token,
+        address owner,
+        address requester,
+        bytes32 balanceHandle,
+        bytes32 thresholdHandle
+    ) external view returns (bool allowed);
+
+    /// @notice Verifies a confidential dividend distribution and computes updated encrypted balances.
+    /// @param token The confidential token contract.
+    /// @param holders The dividend recipients.
+    /// @param encryptedAmounts The encrypted dividend amount pointers for each recipient.
+    /// @param holderBalanceHandles The current encrypted balance pointers for each recipient.
+    /// @param totalSupplyBefore The current encrypted total supply pointer.
+    /// @param data Implementation-specific Nox proof bytes.
+    /// @return result The verified encrypted distribution transition.
+    function verifyDividendDistribution(
+        address token,
+        address[] calldata holders,
+        bytes32[] calldata encryptedAmounts,
+        bytes32[] calldata holderBalanceHandles,
+        bytes32 totalSupplyBefore,
+        bytes calldata data
+    ) external returns (DividendResult memory result);
+
+    /// @notice Produces a portable collateral sufficiency proof without revealing the holder balance.
+    /// @param token The confidential token contract.
+    /// @param owner The holder whose collateral is checked.
+    /// @param requester The proof requester.
+    /// @param balanceHandle The encrypted balance pointer.
+    /// @return proof TEE-authenticated proof bytes consumable by external protocols.
+    function verifyCollateral(
+        address token,
+        address owner,
+        address requester,
+        bytes32 balanceHandle
+    ) external view returns (bytes memory proof);
 }
 
 /// @notice Reversible ERC-20 wrapper that converts regulated ERC-3643 cAAPL into ERC-7984 confidential cAAPL.
-contract ConfidentialCAAPLToken is IERC7984, ERC165, ReentrancyGuard {
+contract ConfidentialCAAPLToken is IERC7984, IConfidentialStockTradeReceiver, ERC165, ReentrancyGuard {
     bytes4 public constant ERC7984_INTERFACE_ID = 0x4958f2a4;
 
     CAAPLToken public immutable underlying;
@@ -280,12 +353,30 @@ contract ConfidentialCAAPLToken is IERC7984, ERC165, ReentrancyGuard {
     mapping(address => bytes32) private _encryptedBalances;
     mapping(address => mapping(address => uint48)) private _operatorUntil;
     mapping(uint256 => bool) public usedNoxNonce;
+    uint256 public nextDividendDistributionId = 1;
 
     /// @notice Emitted when standard cAAPL is wrapped into confidential cAAPL.
     event Wrapped(address indexed account, uint256 plaintextAmount, bytes32 indexed encryptedAmount);
 
     /// @notice Emitted when confidential cAAPL is unwrapped into standard cAAPL.
     event Unwrapped(address indexed account, uint256 plaintextAmount, bytes32 indexed encryptedAmount);
+
+    /// @notice Emitted when a cross-token confidential stock trade settles.
+    event StockTradeSettled(
+        bytes32 indexed tradeId,
+        address indexed initiator,
+        address indexed counterparty,
+        address payToken,
+        address receiveToken,
+        bytes32 encryptedPayAmount,
+        bytes32 encryptedReceiveAmount
+    );
+
+    /// @notice Emitted when a holder receives a confidential dividend. Plaintext amount is never logged.
+    event DividendDistributed(uint256 indexed distributionId, address indexed holder, bytes32 indexed encryptedAmount);
+
+    /// @notice Emitted when a collateral proof is requested. The proof bytes are returned, not logged.
+    event CollateralVerified(address indexed user, bytes32 indexed balanceHandle);
 
     /// @notice Deploys the confidential cAAPL reversible wrapper.
     /// @param underlying_ The ERC-3643 cAAPL token held in wrapper custody.
@@ -412,6 +503,128 @@ contract ConfidentialCAAPLToken is IERC7984, ERC165, ReentrancyGuard {
     /// @return plaintextBalance The decrypted balance returned by the Nox verifier.
     function decryptBalance(address owner, bytes calldata noxData) external view returns (uint256 plaintextBalance) {
         return nox.decryptBalance(address(this), owner, msg.sender, _encryptedBalances[owner], noxData);
+    }
+
+    /// @notice Privately checks whether a user's confidential balance meets an encrypted threshold.
+    /// @param user The holder whose balance is checked.
+    /// @param encryptedThreshold The encrypted threshold handle encoded as uint256 for frontend compatibility.
+    /// @return allowed True when Nox confirms the threshold is satisfied.
+    function hasMinimumBalance(address user, uint256 encryptedThreshold) external view returns (bool allowed) {
+        return nox.hasMinimumBalance(
+            address(this), user, msg.sender, _encryptedBalances[user], bytes32(encryptedThreshold)
+        );
+    }
+
+    /// @notice Returns a TEE-authenticated proof that a user has sufficient confidential collateral.
+    /// @param user The holder whose confidential stock balance is being checked.
+    /// @return proof Portable proof bytes for DeFi integrations.
+    function verifyCollateral(address user) external returns (bytes memory proof) {
+        proof = nox.verifyCollateral(address(this), user, msg.sender, _encryptedBalances[user]);
+        emit CollateralVerified(user, _encryptedBalances[user]);
+    }
+
+    /// @notice Distributes confidential dividends to holders without emitting plaintext amounts.
+    /// @param encryptedAmounts ABI-encoded bytes32 encrypted dividend amount handles, one per holder.
+    /// @param holders Dividend recipients.
+    /// @return distributionId The id assigned to this dividend distribution.
+    function distributeDividend(bytes[] calldata encryptedAmounts, address[] calldata holders)
+        external
+        nonReentrant
+        returns (uint256 distributionId)
+    {
+        require(holders.length == encryptedAmounts.length, "length mismatch");
+        require(holders.length > 0, "empty distribution");
+
+        bytes32[] memory amountHandles = new bytes32[](holders.length);
+        bytes32[] memory balanceHandles = new bytes32[](holders.length);
+
+        for (uint256 i = 0; i < holders.length; i++) {
+            require(identityRegistry.isVerified(holders[i]), "holder not verified");
+            require(encryptedAmounts[i].length == 32, "bad encrypted amount");
+            amountHandles[i] = abi.decode(encryptedAmounts[i], (bytes32));
+            require(amountHandles[i] != bytes32(0), "zero dividend handle");
+            balanceHandles[i] = _encryptedBalances[holders[i]];
+        }
+
+        INoxConfidentialExecutor.DividendResult memory result =
+            nox.verifyDividendDistribution(address(this), holders, amountHandles, balanceHandles, _confidentialTotalSupply, "");
+        _useNoxNonce(result.nonce, result.deadline);
+        require(result.holderBalancesAfter.length == holders.length, "bad dividend result");
+
+        distributionId = nextDividendDistributionId++;
+        _confidentialTotalSupply = result.totalSupplyAfter;
+
+        for (uint256 i = 0; i < holders.length; i++) {
+            _encryptedBalances[holders[i]] = result.holderBalancesAfter[i];
+            emit DividendDistributed(distributionId, holders[i], amountHandles[i]);
+            emit ConfidentialTransfer(address(0), holders[i], amountHandles[i]);
+        }
+    }
+
+    /// @notice Atomically settles a confidential stock-for-stock trade with another confidential token.
+    /// @param counterparty The verified investor receiving this token and paying the other token.
+    /// @param receiveToken The confidential token the initiator receives.
+    /// @param encryptedPayAmount The encrypted amount of this token paid by msg.sender.
+    /// @param encryptedReceiveAmount The encrypted amount of receiveToken paid by counterparty.
+    /// @param payNoxData Nox proof data for this token leg.
+    /// @param receiveNoxData Nox proof data for the receiveToken leg.
+    /// @return tradeId The deterministic id for the atomic settlement.
+    function settleStockTrade(
+        address counterparty,
+        address receiveToken,
+        bytes32 encryptedPayAmount,
+        bytes32 encryptedReceiveAmount,
+        bytes calldata payNoxData,
+        bytes calldata receiveNoxData
+    ) external nonReentrant returns (bytes32 tradeId) {
+        require(receiveToken != address(0), "zero receive token");
+        require(receiveToken != address(this), "same token");
+        require(identityRegistry.isVerified(counterparty), "counterparty not verified");
+
+        tradeId = keccak256(
+            abi.encode(
+                block.chainid,
+                address(this),
+                receiveToken,
+                msg.sender,
+                counterparty,
+                encryptedPayAmount,
+                encryptedReceiveAmount,
+                block.number
+            )
+        );
+
+        bytes32 actualPayAmount = _confidentialTransfer(
+            msg.sender, msg.sender, counterparty, encryptedPayAmount, payNoxData
+        );
+        bytes32 actualReceiveAmount = IConfidentialStockTradeReceiver(receiveToken).settleIncomingStockTrade(
+            address(this), counterparty, msg.sender, encryptedReceiveAmount, tradeId, receiveNoxData
+        );
+
+        emit StockTradeSettled(
+            tradeId,
+            msg.sender,
+            counterparty,
+            address(this),
+            receiveToken,
+            actualPayAmount,
+            actualReceiveAmount
+        );
+    }
+
+    /// @inheritdoc IConfidentialStockTradeReceiver
+    function settleIncomingStockTrade(
+        address operator,
+        address from,
+        address to,
+        bytes32 amount,
+        bytes32 tradeId,
+        bytes calldata data
+    ) external nonReentrant returns (bytes32 actualAmount) {
+        require(operator != address(0), "zero operator");
+        require(tradeId != bytes32(0), "zero trade id");
+        require(isOperator(from, msg.sender), "trade token not operator");
+        actualAmount = _confidentialTransfer(operator, from, to, amount, data);
     }
 
     /// @inheritdoc IERC7984

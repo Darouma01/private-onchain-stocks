@@ -34,6 +34,10 @@ export const confidentialCAAPLAbi = parseAbi([
   "function wrap(uint256 plaintextAmount, bytes noxData) returns (bytes32)",
   "function unwrap(bytes32 encryptedAmount, bytes noxData) returns (uint256)",
   "function confidentialTransfer(address to, bytes32 amount, bytes data) returns (bytes32)",
+  "function settleStockTrade(address counterparty, address receiveToken, bytes32 encryptedPayAmount, bytes32 encryptedReceiveAmount, bytes payNoxData, bytes receiveNoxData) returns (bytes32)",
+  "function hasMinimumBalance(address user, uint256 encryptedThreshold) view returns (bool)",
+  "function distributeDividend(bytes[] encryptedAmounts, address[] holders) returns (uint256)",
+  "function verifyCollateral(address user) returns (bytes)",
   "function getEncryptedBalance(address account) view returns (bytes32)",
   "function decryptBalance(address owner, bytes noxData) view returns (uint256)",
 ]);

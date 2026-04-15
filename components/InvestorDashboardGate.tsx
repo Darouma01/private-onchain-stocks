@@ -10,9 +10,9 @@ type InvestorDashboardGateProps = {
 };
 
 export function InvestorDashboardGate({ featureName, utility, children }: InvestorDashboardGateProps) {
-  const { isConnected, encryptedLoading, hasEncryptedBalance, encryptedError } = useConfidentialAccess();
+  const { isConnected, encryptedLoading, hasHolderAccess, encryptedError } = useConfidentialAccess();
 
-  if (hasEncryptedBalance) {
+  if (hasHolderAccess) {
     return <>{children}</>;
   }
 

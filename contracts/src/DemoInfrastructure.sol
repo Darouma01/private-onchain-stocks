@@ -148,6 +148,61 @@ contract DemoNoxConfidentialExecutor is INoxConfidentialExecutor {
         return valueOf[balanceHandle];
     }
 
+    /// @inheritdoc INoxConfidentialExecutor
+    function hasMinimumBalance(
+        address token,
+        address owner,
+        address requester,
+        bytes32 balanceHandle,
+        bytes32 thresholdHandle
+    ) external view override returns (bool allowed) {
+        token;
+        owner;
+        requester;
+        return valueOf[balanceHandle] >= valueOf[thresholdHandle];
+    }
+
+    /// @inheritdoc INoxConfidentialExecutor
+    function verifyDividendDistribution(
+        address token,
+        address[] calldata holders,
+        bytes32[] calldata encryptedAmounts,
+        bytes32[] calldata holderBalanceHandles,
+        bytes32 totalSupplyBefore,
+        bytes calldata data
+    ) external override returns (DividendResult memory result) {
+        token;
+        data;
+        require(holders.length == encryptedAmounts.length, "demo nox: amount length");
+        require(holders.length == holderBalanceHandles.length, "demo nox: balance length");
+
+        result.holderBalancesAfter = new bytes32[](holders.length);
+        uint256 totalSupply = valueOf[totalSupplyBefore];
+
+        for (uint256 i = 0; i < holders.length; i++) {
+            uint256 dividendAmount = valueOf[encryptedAmounts[i]];
+            require(dividendAmount > 0, "demo nox: zero dividend");
+            result.holderBalancesAfter[i] = _newHandle(valueOf[holderBalanceHandles[i]] + dividendAmount);
+            totalSupply += dividendAmount;
+        }
+
+        result.totalSupplyAfter = _newHandle(totalSupply);
+        result.nonce = nextNonce++;
+        result.deadline = uint48(block.timestamp + 1 hours);
+    }
+
+    /// @inheritdoc INoxConfidentialExecutor
+    function verifyCollateral(
+        address token,
+        address owner,
+        address requester,
+        bytes32 balanceHandle
+    ) external view override returns (bytes memory proof) {
+        uint256 balance = valueOf[balanceHandle];
+        require(balance > 0, "demo nox: insufficient collateral");
+        return abi.encode(block.chainid, token, owner, requester, balanceHandle, keccak256("COLLATERAL_SUFFICIENT"));
+    }
+
     /// @notice Creates a new demo handle.
     /// @param value The plaintext value represented by the handle.
     /// @return handle The generated handle.

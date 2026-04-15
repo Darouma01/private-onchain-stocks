@@ -8,6 +8,7 @@ export function ConfidentialTokenUtilityPanel() {
   const [checkedVip, setCheckedVip] = useState(false);
   const {
     hasEncryptedBalance,
+    hasHolderAccess,
     encryptedBalance,
     revealedBalance,
     revealBalance,
@@ -21,7 +22,7 @@ export function ConfidentialTokenUtilityPanel() {
     await revealBalance();
   }
 
-  const holderStatus = hasEncryptedBalance ? "Unlocked" : "Locked";
+  const holderStatus = hasHolderAccess ? "Unlocked" : "Locked";
   const vipStatus = !checkedVip
     ? "Private"
     : isVip
@@ -35,7 +36,7 @@ export function ConfidentialTokenUtilityPanel() {
           <h2>Confidential Token Utility</h2>
           <p className="muted">ccAAPL is the working asset for private payments, holder access, collateral, and rewards.</p>
         </div>
-        <span className={`status-dot ${hasEncryptedBalance ? "good" : "blocked"}`}>{holderStatus}</span>
+        <span className={`status-dot ${hasHolderAccess ? "good" : "blocked"}`}>{holderStatus}</span>
       </div>
 
       <div className="metric-grid">
@@ -46,8 +47,8 @@ export function ConfidentialTokenUtilityPanel() {
         />
         <UtilityCard
           title="Access Control"
-          status={hasEncryptedBalance ? "Dashboard unlocked" : "Holder gate closed"}
-          text="Investor dashboard tools require a non-zero encrypted ccAAPL balance handle before they render."
+          status={hasHolderAccess ? "Dashboard unlocked" : "Holder gate closed"}
+          text="Investor dashboard tools call hasMinimumBalance with an encrypted threshold before they render."
         />
         <UtilityCard
           title="In-App Currency"
