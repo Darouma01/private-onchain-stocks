@@ -1,0 +1,28 @@
+{
+  "chainId": 421614,
+  "network": "arbitrumSepolia",
+  "deployer": "0xD3eed2f7dcED5fbc96Fb1a0FC058C540D50b4f80",
+  "deployed": {
+    "cAAPL": "0x0f44cFaeb97eB7a50c0a382F6411aCF33dB59484",
+    "cTSLA": "0x0257d5F90E61fD32B3e380855dcC0913Dc62eD4E",
+    "cBTC": "0x7a072bFFB90336ECa4Ef04Feade7f983bCD4fb64",
+    "cGOLD": "0x693dB9671C7bE87d9bb5d114B934020B3F13d503",
+    "cUSDC": "0xf3E09C8028543A4D22Ccce653DD3bbEA82d5e115"
+  },
+  "wrappers": {
+    "cAAPL": "0x4575cCE8D33b06450f0008a2D6789c35d39e37cD",
+    "cTSLA": "0x7855213b64c5BB0685C4bfAad580Fb4ED3F4C743",
+    "cBTC": "0x76537f58Aa07F63b1bC4094015e7e66F972f21dE",
+    "cGOLD": "0x6093D8d57ecf129a100D70f2BEd9BE0A4fE18d34",
+    "cUSDC": "0xEe44E0a883FF8b56B55c6F5e15ef4C1cA51374e5"
+  },
+  "modules": {
+    "SharedIdentityRegistry": "0x74049b4ec7a908a436f869d982eedbbf7cb46c66",
+    "AssetRegistry": "0x652c206add1418a09c34e7be311611d79a422b78",
+    "ComplianceModule": "0x01522256dee8e7281fa4cf4f30c25fb445d45b05",
+    "PriceFeedModule": "0xffa331b9838a714635db287a09ffd9a3d0204623",
+    "AssetFactory": "0x82de71fc415000765b542e814f8fa6eb4181f9f1",
+    "NoxExecutor": "0xd98f10ee9171677d7f14d4f8048d002a5b3aa375",
+    "ConfidentialWrapperFactory": "0xad348f690b5d04aa68bbd3b26cfa88eb28cd1c41"
+  }
+}
