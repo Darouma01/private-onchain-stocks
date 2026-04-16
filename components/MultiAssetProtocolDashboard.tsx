@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
+import { formatEther, parseEther } from "viem";
+import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { AssetCategory } from "@/deploy/assets.config";
 import {
   assetDeployment,
@@ -10,9 +12,22 @@ import {
   moduleAddresses,
   type DeployedAsset,
 } from "@/lib/deployed-assets";
-import { addressUrl, shortAddress } from "@/lib/contracts";
+import {
+  addressUrl,
+  baseAssetAbi,
+  confidentialWrapperAbi,
+  deployedNoxExecutorAddress,
+  shortAddress,
+  txUrl,
+} from "@/lib/contracts";
 
 type Tab = "Markets" | "Portfolio" | "Trade" | "Dividends" | "Governance" | "Collateral" | "AI Tools";
+
+type ActionState = {
+  label: string;
+  hash?: `0x${string}`;
+  error?: string;
+};
 
 const tabs: Tab[] = ["Markets", "Portfolio", "Trade", "Dividends", "Governance", "Collateral", "AI Tools"];
 
@@ -94,6 +109,7 @@ export function MultiAssetProtocolDashboard() {
           setCategory={setCategory}
           setQuery={setQuery}
           setSelectedSymbol={setSelectedSymbol}
+          selectedAsset={selectedAsset}
         />
       ) : null}
       {tab === "Portfolio" ? <PortfolioTab selectedAsset={selectedAsset} /> : null}
@@ -112,6 +128,7 @@ function MarketsTab({
   filteredAssets,
   query,
   selectedSymbol,
+  selectedAsset,
   setCategory,
   setQuery,
   setSelectedSymbol,
@@ -121,6 +138,7 @@ function MarketsTab({
   filteredAssets: DeployedAsset[];
   query: string;
   selectedSymbol: string;
+  selectedAsset: DeployedAsset;
   setCategory: (category: AssetCategory | "ALL") => void;
   setQuery: (query: string) => void;
   setSelectedSymbol: (symbol: string) => void;
@@ -167,6 +185,8 @@ function MarketsTab({
           />
         ))}
       </div>
+
+      <AssetActionPanel asset={selectedAsset} />
     </div>
   );
 }
@@ -204,16 +224,18 @@ function AssetCard({ asset, isSelected, onSelect }: { asset: DeployedAsset; isSe
 
 function PortfolioTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
   return (
-    <div className="utility-layout">
-      <UtilityBlock
-        title="Hidden Holdings"
-        text="Portfolio rows use confidential wrapper contracts. Balances stay hidden as encrypted handles until the owner requests a Nox disclosure."
-      />
-      <UtilityBlock
-        title="Private Tiering"
-        text="Dashboard sections can call encrypted balance or portfolio threshold checks instead of reading public token balances."
-      />
-      <SelectedAssetPanel asset={selectedAsset} label="Selected portfolio asset" />
+    <div className="stack">
+      <AssetActionPanel asset={selectedAsset} />
+      <div className="utility-layout">
+        <UtilityBlock
+          title="Hidden Holdings"
+          text="Portfolio rows use confidential wrapper contracts. Balances stay hidden as encrypted handles until the owner requests a Nox disclosure."
+        />
+        <UtilityBlock
+          title="Private Tiering"
+          text="Dashboard sections can call encrypted balance or portfolio threshold checks instead of reading public token balances."
+        />
+      </div>
     </div>
   );
 }
@@ -226,14 +248,12 @@ function TradeTab({
   setSelectedSymbol: (symbol: string) => void;
 }) {
   return (
-    <div className="utility-layout">
-      <SelectedAssetPanel asset={selectedAsset} label="From asset" />
+    <div className="stack">
       <div className="action-panel">
-        <strong>Cross-asset confidential trade</strong>
-        <p className="muted">
-          Use encrypted amount handles for both legs. The wrapper emits asset/from/to metadata but never plaintext
-          amounts.
-        </p>
+        <div>
+          <strong>Select active asset</strong>
+          <p className="muted">Choose any deployed asset, then approve, wrap, and privately transfer it below.</p>
+        </div>
         <select onChange={(event) => setSelectedSymbol(event.target.value)} value={selectedAsset.symbol}>
           {deployedAssets.map((asset) => (
             <option key={asset.symbol} value={asset.symbol}>
@@ -241,17 +261,248 @@ function TradeTab({
             </option>
           ))}
         </select>
-        <div className="metric-grid">
-          <div className="metric">
-            <span className="muted">Settlement asset</span>
-            <strong>cUSDC</strong>
-          </div>
-          <div className="metric">
-            <span className="muted">Trade privacy</span>
-            <strong>Encrypted</strong>
+      </div>
+      <AssetActionPanel asset={selectedAsset} />
+      <div className="utility-layout">
+        <SelectedAssetPanel asset={selectedAsset} label="From asset" />
+        <div className="action-panel">
+          <strong>Cross-asset confidential trade</strong>
+          <p className="muted">
+            Use encrypted amount handles for both legs. The wrapper emits asset/from/to metadata but never plaintext
+            amounts.
+          </p>
+          <div className="metric-grid">
+            <div className="metric">
+              <span className="muted">Settlement asset</span>
+              <strong>cUSDC</strong>
+            </div>
+            <div className="metric">
+              <span className="muted">Trade privacy</span>
+              <strong>Encrypted</strong>
+            </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AssetActionPanel({ asset }: { asset: DeployedAsset }) {
+  const { address, isConnected } = useAccount();
+  const [wrapAmount, setWrapAmount] = useState("10");
+  const [transferAmount, setTransferAmount] = useState("1");
+  const [recipient, setRecipient] = useState("");
+  const [action, setAction] = useState<ActionState | null>(null);
+  const { writeContractAsync } = useWriteContract();
+
+  const standardBalance = useReadContract({
+    address: asset.baseAddress,
+    abi: baseAssetAbi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: Boolean(address) },
+  });
+
+  const allowance = useReadContract({
+    address: asset.baseAddress,
+    abi: baseAssetAbi,
+    functionName: "allowance",
+    args: address ? [address, asset.wrapperAddress] : undefined,
+    query: { enabled: Boolean(address) },
+  });
+
+  const encryptedBalance = useReadContract({
+    address: asset.wrapperAddress,
+    abi: confidentialWrapperAbi,
+    functionName: "getEncryptedBalance",
+    args: address ? [address] : undefined,
+    query: { enabled: Boolean(address) },
+  });
+
+  const wait = useWaitForTransactionReceipt({
+    hash: action?.hash,
+    query: { enabled: Boolean(action?.hash) },
+  });
+
+  const wrapAmountWei = useMemo(() => safeParseEther(wrapAmount), [wrapAmount]);
+  const transferAmountWei = useMemo(() => safeParseEther(transferAmount), [transferAmount]);
+  const hasEncryptedBalance = Boolean(
+    encryptedBalance.data &&
+      encryptedBalance.data !== "0x0000000000000000000000000000000000000000000000000000000000000000",
+  );
+
+  async function refresh() {
+    await Promise.all([standardBalance.refetch(), allowance.refetch(), encryptedBalance.refetch()]);
+  }
+
+  async function approve(event: FormEvent) {
+    event.preventDefault();
+    if (!wrapAmountWei) {
+      setAction({ label: "Approval needs attention", error: "Enter an amount greater than zero." });
+      return;
+    }
+    try {
+      setAction({ label: `Approving ${asset.symbol} wrapper...` });
+      const hash = await writeContractAsync({
+        address: asset.baseAddress,
+        abi: baseAssetAbi,
+        functionName: "approve",
+        args: [asset.wrapperAddress, wrapAmountWei],
+      });
+      setAction({ label: `${asset.symbol} approval submitted`, hash });
+      await refresh();
+    } catch (caught) {
+      setAction({ label: "Approval failed", error: errorMessage(caught) });
+    }
+  }
+
+  async function wrap(event: FormEvent) {
+    event.preventDefault();
+    if (!wrapAmountWei) {
+      setAction({ label: "Wrap needs attention", error: "Enter an amount greater than zero." });
+      return;
+    }
+    try {
+      if ((allowance.data ?? 0n) < wrapAmountWei) {
+        setAction({ label: "Approval required", error: `Approve the ${asset.symbol} wrapper before wrapping this amount.` });
+        return;
+      }
+      setAction({ label: `Wrapping ${asset.symbol} into its confidential wrapper...` });
+      const hash = await writeContractAsync({
+        address: asset.wrapperAddress,
+        abi: confidentialWrapperAbi,
+        functionName: "wrap",
+        args: [wrapAmountWei, "0x"],
+      });
+      setAction({ label: `${asset.symbol} wrap submitted`, hash });
+      await refresh();
+    } catch (caught) {
+      setAction({ label: "Wrap failed", error: errorMessage(caught) });
+    }
+  }
+
+  async function transfer(event: FormEvent) {
+    event.preventDefault();
+    if (!transferAmountWei || !/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
+      setAction({ label: "Transfer needs attention", error: "Enter a valid recipient and amount greater than zero." });
+      return;
+    }
+    try {
+      setAction({ label: `Creating encrypted ${asset.symbol} transfer handle...` });
+      const response = await fetch("/api/demo/create-handle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: transferAmountWei.toString(), noxAddress: deployedNoxExecutorAddress }),
+      });
+      const payload = (await response.json()) as { handle?: `0x${string}`; transactionHash?: `0x${string}`; error?: string };
+      if (!response.ok || !payload.handle) {
+        throw new Error(payload.error ?? "Unable to create encrypted amount handle");
+      }
+
+      setAction({ label: "Encrypted amount handle created", hash: payload.transactionHash });
+      const hash = await writeContractAsync({
+        address: asset.wrapperAddress,
+        abi: confidentialWrapperAbi,
+        functionName: "confidentialTransfer",
+        args: [recipient as `0x${string}`, payload.handle, "0x"],
+      });
+      setAction({ label: `${asset.symbol} confidential transfer submitted`, hash });
+      await refresh();
+    } catch (caught) {
+      setAction({ label: "Confidential transfer failed", error: errorMessage(caught) });
+    }
+  }
+
+  if (!isConnected) {
+    return (
+      <div className="action-panel">
+        <strong>Connect wallet to use {asset.symbol}</strong>
+        <p className="muted">After connecting, you can approve, wrap, and privately transfer this deployed asset.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="action-panel">
+      <div className="row">
+        <div>
+          <strong>Use {asset.symbol}</strong>
+          <p className="muted">
+            Approve the base asset, wrap into {asset.wrapperAddress ? "the confidential wrapper" : "confidential form"},
+            then transfer encrypted amounts.
+          </p>
+        </div>
+        <span className={hasEncryptedBalance ? "status-dot good" : "status-dot neutral"}>
+          {hasEncryptedBalance ? "Wrapped" : "Not wrapped"}
+        </span>
+      </div>
+
+      <div className="metric-grid">
+        <div className="metric">
+          <span className="muted">Base balance</span>
+          <strong>{standardBalance.data === undefined ? "..." : `${formatEther(standardBalance.data)} ${asset.symbol}`}</strong>
+        </div>
+        <div className="metric">
+          <span className="muted">Approved amount</span>
+          <strong>{allowance.data === undefined ? "..." : formatEther(allowance.data)}</strong>
+        </div>
+        <div className="metric">
+          <span className="muted">Encrypted balance handle</span>
+          <strong className="handle-text">
+            {hasEncryptedBalance && encryptedBalance.data ? `${encryptedBalance.data.slice(0, 10)}...` : "None"}
+          </strong>
+        </div>
+      </div>
+
+      <form className="inline-action-grid" onSubmit={approve}>
+        <input
+          aria-label={`Amount of ${asset.symbol} to approve or wrap`}
+          inputMode="decimal"
+          onChange={(event) => setWrapAmount(event.target.value)}
+          value={wrapAmount}
+        />
+        <button disabled={!wrapAmountWei} type="submit">
+          Approve
+        </button>
+        <button disabled={!wrapAmountWei} onClick={(event) => void wrap(event)} type="button">
+          Wrap
+        </button>
+      </form>
+
+      <form className="transfer-grid" onSubmit={transfer}>
+        <input
+          aria-label="Confidential transfer recipient"
+          onChange={(event) => setRecipient(event.target.value)}
+          placeholder="Recipient wallet"
+          value={recipient}
+        />
+        <input
+          aria-label={`Encrypted ${asset.symbol} transfer amount`}
+          inputMode="decimal"
+          onChange={(event) => setTransferAmount(event.target.value)}
+          value={transferAmount}
+        />
+        <button disabled={!transferAmountWei || !hasEncryptedBalance} type="submit">
+          Transfer Privately
+        </button>
+      </form>
+
+      <ActionFeedback action={action} pending={wait.isLoading} confirmed={wait.isSuccess} />
+    </div>
+  );
+}
+
+function ActionFeedback({ action, pending, confirmed }: { action: ActionState | null; pending: boolean; confirmed: boolean }) {
+  if (!action) return null;
+  return (
+    <div className={`feedback ${action.error ? "bad" : confirmed ? "good" : "neutral"}`}>
+      <strong>{pending ? "Waiting for confirmation..." : action.label}</strong>
+      {action.error ? <p>{action.error}</p> : null}
+      {action.hash ? (
+        <a href={txUrl(action.hash)} target="_blank" rel="noreferrer">
+          View transaction on Arbiscan
+        </a>
+      ) : null}
     </div>
   );
 }
@@ -350,4 +601,17 @@ function UtilityBlock({ title, text }: { title: string; text: string }) {
       <p className="muted">{text}</p>
     </div>
   );
+}
+
+function safeParseEther(value: string) {
+  try {
+    const parsed = parseEther(value);
+    return parsed > 0n ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Transaction failed";
 }

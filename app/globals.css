@@ -356,6 +356,20 @@ textarea {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
+.inline-action-grid,
+.transfer-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.inline-action-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(110px, auto) minmax(110px, auto);
+}
+
+.transfer-grid {
+  grid-template-columns: minmax(220px, 1fr) minmax(140px, 0.35fr) minmax(170px, auto);
+}
+
 .utility-card {
   display: grid;
   gap: 6px;
@@ -488,6 +502,11 @@ textarea {
   }
 
   .market-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-action-grid,
+  .transfer-grid {
     grid-template-columns: 1fr;
   }
 

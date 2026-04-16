@@ -21,6 +21,10 @@ export const complianceAddress = (
 
 export const demoNoxAddress = "0x67b72c4ce71b932a1f0bffbb96beb5460b966939" as const;
 
+export const deployedNoxExecutorAddress = (
+  process.env.NEXT_PUBLIC_NOX_EXECUTOR_ADDRESS ?? "0xd98f10ee9171677d7f14d4f8048d002a5b3aa375"
+) as `0x${string}`;
+
 export const holderThresholdHandle = (
   process.env.NEXT_PUBLIC_HOLDER_THRESHOLD_HANDLE ??
   "0x01764ee3246ec7bfa51b494333c9c8324e184a1435193424d93ab6bdfde85d0b"
@@ -56,6 +60,25 @@ export const identityRegistryAbi = parseAbi([
 export const complianceAbi = parseAbi(["function holderCount() view returns (uint256)"]);
 
 export const demoNoxAbi = parseAbi(["function createHandle(uint256 value) returns (bytes32)"]);
+
+export const baseAssetAbi = parseAbi([
+  "function balanceOf(address account) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function decimals() view returns (uint8)",
+  "function symbol() view returns (string)",
+  "function transfer(address to, uint256 amount) returns (bool)",
+]);
+
+export const confidentialWrapperAbi = parseAbi([
+  "function wrap(uint256 amount, bytes noxData) returns (bytes32)",
+  "function unwrap(bytes32 encryptedAmount, bytes noxData) returns (uint256)",
+  "function confidentialTransfer(address to, bytes32 encryptedAmount, bytes noxData) returns (bytes32)",
+  "function getEncryptedBalance(address account) view returns (bytes32)",
+  "function decryptBalance(address owner, bytes noxData) view returns (uint256)",
+  "function hasMinimumBalance(address user, uint256 encryptedThreshold) view returns (bool)",
+  "function verifyCollateral(address user) returns (bytes)",
+]);
 
 export function txUrl(hash: string) {
   return `${explorerUrl}/tx/${hash}`;
