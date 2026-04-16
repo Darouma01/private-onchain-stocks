@@ -8,6 +8,7 @@
     "build": "next build",
     "compile:contracts": "solcjs --optimize --optimize-runs 200 --base-path . --include-path node_modules --include-path lib --bin --abi -o build/solc contracts/src/CAAPL3643Suite.sol contracts/src/ConfidentialCAAPLToken.sol contracts/src/DemoInfrastructure.sol contracts/assets/AssetTypes.sol contracts/interfaces/ISharedIdentityRegistry.sol contracts/interfaces/INoxExecutor.sol contracts/modules/ComplianceModule.sol contracts/modules/PriceFeedModule.sol contracts/modules/DemoNoxExecutor.sol contracts/core/IdentityRegistry.sol contracts/core/AssetRegistry.sol contracts/core/BaseConfidentialToken.sol contracts/core/AssetFactory.sol contracts/core/BaseConfidentialWrapper.sol contracts/core/ConfidentialWrapperFactory.sol test/ConfidentialCAAPLToken.t.sol test/AssetFactory.t.sol test/ConfidentialWrapperFactory.t.sol",
     "deploy:arbitrum-sepolia": "tsx scripts/deploy-arbitrum.ts",
+    "deploy:61-assets": "tsx scripts/deploy-61-assets.ts",
     "verify:arbiscan": "tsx scripts/verify-arbiscan.ts",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
