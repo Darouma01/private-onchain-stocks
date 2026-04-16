@@ -2,6 +2,7 @@ import { ConfidentialPortfolio } from "@/components/ConfidentialPortfolio";
 import { ConfidentialTokenUtilityPanel } from "@/components/ConfidentialTokenUtilityPanel";
 import { InvestorDashboardGate } from "@/components/InvestorDashboardGate";
 import { KycStatusCard } from "@/components/KycStatusCard";
+import { MultiAssetProtocolDashboard } from "@/components/MultiAssetProtocolDashboard";
 import { OnChainDataInsightsPanel } from "@/components/OnChainDataInsightsPanel";
 import { SmartContractAuditorWidget } from "@/components/SmartContractAuditorWidget";
 import { TestnetBanner } from "@/components/TestnetBanner";
@@ -15,8 +16,8 @@ export default function HomePage() {
       <header className="header">
         <h1>Private Onchain Stocks</h1>
         <p>
-          Wrap compliant cAAPL into confidential ccAAPL for private payments, holder-gated investor access, private
-          collateral eligibility, and confidential rewards.
+          Trade and manage 61 deployed confidential assets across stocks, crypto, commodities, and stablecoins with
+          encrypted balances, private payments, holder-gated access, confidential rewards, governance, and collateral.
         </p>
       </header>
 
@@ -24,6 +25,8 @@ export default function HomePage() {
         <WalletPanel />
         <KycStatusCard />
       </div>
+
+      <MultiAssetProtocolDashboard />
 
       <div className="primary-grid">
         <ConfidentialPortfolio />

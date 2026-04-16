@@ -116,6 +116,10 @@ textarea {
   margin-bottom: 18px;
 }
 
+.multi-asset-section {
+  margin-bottom: 18px;
+}
+
 .section {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -242,6 +246,114 @@ textarea {
   display: block;
   font-size: 22px;
   margin-top: 4px;
+}
+
+.tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tab {
+  background: #edf1f7;
+  color: var(--ink);
+  min-height: 38px;
+}
+
+.tab.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.market-controls {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 0.3fr);
+}
+
+.category-strip {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.category-button {
+  align-items: start;
+  background: #f4f7fb;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  min-height: 66px;
+  padding: 10px 12px;
+}
+
+.category-button strong {
+  font-size: 22px;
+}
+
+.category-button span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.asset-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  max-height: 720px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.asset-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.asset-card.selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.asset-card p,
+.action-panel p {
+  margin: 0;
+}
+
+.asset-meta,
+.address-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.asset-meta span {
+  background: #f4f7fb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 8px;
+}
+
+.address-pair a {
+  background: #e6f4f1;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+  padding: 7px 9px;
+  text-decoration: none;
+}
+
+.utility-layout {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
 .utility-card {
@@ -372,6 +484,10 @@ textarea {
   }
 
   .primary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .market-controls {
     grid-template-columns: 1fr;
   }
 
