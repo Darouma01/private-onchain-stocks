@@ -21,6 +21,11 @@ export const complianceAddress = (
 
 export const demoNoxAddress = "0x67b72c4ce71b932a1f0bffbb96beb5460b966939" as const;
 
+export const holderThresholdHandle = (
+  process.env.NEXT_PUBLIC_HOLDER_THRESHOLD_HANDLE ??
+  "0x01764ee3246ec7bfa51b494333c9c8324e184a1435193424d93ab6bdfde85d0b"
+) as `0x${string}`;
+
 export const caaplAbi = parseAbi([
   "function balanceOf(address account) view returns (uint256)",
   "function allowance(address owner, address spender) view returns (uint256)",

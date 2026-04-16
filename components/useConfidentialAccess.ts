@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { parseEther } from "viem";
 import { useAccount, useReadContract } from "wagmi";
-import { confidentialCAAPLAbi, confidentialCAAPLAddress } from "@/lib/contracts";
+import { confidentialCAAPLAbi, confidentialCAAPLAddress, holderThresholdHandle } from "@/lib/contracts";
 
 const emptyHandle = "0x0000000000000000000000000000000000000000000000000000000000000000";
 export const vipBalanceThreshold = parseEther("50");
 
 export function useConfidentialAccess() {
   const { address, isConnected } = useAccount();
-  const [holderThresholdHandle, setHolderThresholdHandle] = useState<`0x${string}` | null>(null);
-  const [thresholdError, setThresholdError] = useState<Error | null>(null);
 
   const encrypted = useReadContract({
     address: confidentialCAAPLAddress,
@@ -21,45 +19,12 @@ export function useConfidentialAccess() {
     query: { enabled: Boolean(address) },
   });
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function createHolderThreshold() {
-      if (!address || holderThresholdHandle) return;
-      setThresholdError(null);
-      try {
-        const response = await fetch("/api/demo/create-handle", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount: "1" }),
-        });
-        const payload = (await response.json()) as { handle?: `0x${string}`; error?: string };
-        if (!response.ok || !payload.handle) {
-          throw new Error(payload.error ?? "Unable to create holder threshold handle");
-        }
-        if (!cancelled) {
-          setHolderThresholdHandle(payload.handle);
-        }
-      } catch (caught) {
-        if (!cancelled) {
-          setThresholdError(caught instanceof Error ? caught : new Error("Unable to create holder threshold handle"));
-        }
-      }
-    }
-
-    void createHolderThreshold();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [address, holderThresholdHandle]);
-
   const holderAccess = useReadContract({
     address: confidentialCAAPLAddress,
     abi: confidentialCAAPLAbi,
     functionName: "hasMinimumBalance",
-    args: address && holderThresholdHandle ? [address, BigInt(holderThresholdHandle)] : undefined,
-    query: { enabled: Boolean(address && holderThresholdHandle) },
+    args: address ? [address, BigInt(holderThresholdHandle)] : undefined,
+    query: { enabled: Boolean(address) },
   });
 
   const reveal = useReadContract({
@@ -83,7 +48,7 @@ export function useConfidentialAccess() {
       hasEncryptedBalance,
       hasHolderAccess,
       encryptedLoading: encrypted.isLoading,
-      encryptedError: encrypted.error ?? holderAccess.error ?? thresholdError,
+      encryptedError: encrypted.error ?? holderAccess.error,
       refetchEncryptedBalance: encrypted.refetch,
       refetchHolderAccess: holderAccess.refetch,
       revealedBalance: reveal.data,
@@ -108,7 +73,6 @@ export function useConfidentialAccess() {
       reveal.error,
       reveal.isLoading,
       reveal.refetch,
-      thresholdError,
     ],
   );
 }
