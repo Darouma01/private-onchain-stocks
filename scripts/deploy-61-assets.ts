@@ -6,6 +6,7 @@ type ResumeState = {
   chainId: number;
   network: string;
   deployed: Record<string, string>;
+  wrappers: Record<string, string>;
   modules: Record<string, string>;
 };
 
@@ -30,6 +31,9 @@ async function main() {
   const hre = await loadHardhatRuntime();
   const [deployer] = await hre.ethers.getSigners();
   const state = await loadResumeState();
+  state.wrappers ??= {};
+  state.modules ??= {};
+  state.deployed ??= {};
 
   console.log(`Deploying Private Onchain Stocks to ${networkName} (${chainId})`);
   console.log(`Deployer: ${deployer.address}`);
@@ -49,6 +53,11 @@ async function main() {
     state.modules.AssetRegistry,
     state.modules.ComplianceModule,
   ]);
+  state.modules.NoxExecutor ??= process.env.NOX_EXECUTOR_ADDRESS ?? (await deployModule(hre, "DemoNoxExecutor", []));
+  state.modules.ConfidentialWrapperFactory ??= await deployModule(hre, "ConfidentialWrapperFactory", [
+    deployer.address,
+    state.modules.NoxExecutor,
+  ]);
 
   await configureFactoryPermissions(hre, state);
   await saveResumeState(state);
@@ -66,6 +75,7 @@ async function main() {
     }
   }
 
+  await batchWrapAssets(hre, state, assets);
   await writeDeploymentOutput(state);
   await verifyAll(hre, state);
 }
@@ -126,6 +136,27 @@ async function deployAsset(hre: HardhatRuntime, factoryAddress: string, asset: A
   return address;
 }
 
+async function batchWrapAssets(hre: HardhatRuntime, state: ResumeState, configs: AssetConfig[]) {
+  const missing = configs.filter((asset) => !state.wrappers[asset.symbol]);
+  if (missing.length === 0) {
+    console.log("All confidential wrappers already recorded");
+    return;
+  }
+
+  const wrapperFactoryFactory = await hre.ethers.getContractFactory("ConfidentialWrapperFactory");
+  const wrapperFactory = wrapperFactoryFactory.attach(state.modules.ConfidentialWrapperFactory);
+  const underlyings = missing.map((asset) => state.deployed[asset.symbol]);
+  console.log(`Calling batchWrapAssets for ${missing.length} assets`);
+  await waitFor(wrapperFactory.batchWrapAssets(underlyings));
+
+  for (const asset of missing) {
+    const wrapper = (await wrapperFactory.wrapperOf(state.deployed[asset.symbol])) as string;
+    state.wrappers[asset.symbol] = wrapper;
+    console.log(`${asset.symbol} wrapper: ${wrapper}`);
+  }
+  await saveResumeState(state);
+}
+
 function toSolidityConfig(asset: AssetConfig) {
   return {
     name: asset.name,
@@ -162,6 +193,9 @@ async function verifyAll(hre: HardhatRuntime, state: ResumeState) {
   for (const [symbol, address] of Object.entries(state.deployed)) {
     await safeVerify(hre, symbol, address, []);
   }
+  for (const [symbol, address] of Object.entries(state.wrappers)) {
+    await safeVerify(hre, `${symbol}Wrapper`, address, []);
+  }
 }
 
 async function safeVerify(hre: HardhatRuntime, label: string, address: string, constructorArguments: unknown[]) {
@@ -182,7 +216,7 @@ async function loadResumeState(): Promise<ResumeState> {
   try {
     return JSON.parse(await readFile(resumePath, "utf8")) as ResumeState;
   } catch {
-    return { chainId, network: networkName, deployed: {}, modules: {} };
+    return { chainId, network: networkName, deployed: {}, wrappers: {}, modules: {} };
   }
 }
 
