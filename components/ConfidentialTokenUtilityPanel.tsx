@@ -41,24 +41,34 @@ export function ConfidentialTokenUtilityPanel() {
 
       <div className="metric-grid">
         <UtilityCard
+          icon="🔒"
           title="Private Payments"
           status={hasEncryptedBalance ? "Ready" : "Wrap required"}
           text="Confidential transfers settle stock trades between verified investors while on-chain amounts remain encrypted."
         />
         <UtilityCard
+          icon="🚪"
           title="Access Control"
           status={hasHolderAccess ? "Dashboard unlocked" : "Holder gate closed"}
           text="Investor dashboard tools call hasMinimumBalance with an encrypted threshold before they render."
         />
         <UtilityCard
+          icon="💱"
           title="In-App Currency"
           status={hasEncryptedBalance ? "Collateral eligible" : "No collateral"}
           text="Wrapped stock balances are treated as private collateral for protocol workflows and future DeFi integrations."
         />
         <UtilityCard
+          icon="🎁"
           title="Rewards"
           status={hasEncryptedBalance ? "Dividend eligible" : "Not eligible"}
           text="Confidential dividend rewards can be distributed as encrypted amounts that only recipients can decrypt."
+        />
+        <UtilityCard
+          icon="🗳️"
+          title="Governance"
+          status={hasHolderAccess ? "Active" : "Locked"}
+          text="Vote on protocol decisions using your confidential token holdings as private voting weight. Your vote direction and weight are never revealed until the proposal closes."
         />
       </div>
 
@@ -95,9 +105,10 @@ export function ConfidentialTokenUtilityPanel() {
   );
 }
 
-function UtilityCard({ title, status, text }: { title: string; status: string; text: string }) {
+function UtilityCard({ icon, title, status, text }: { icon: string; title: string; status: string; text: string }) {
   return (
     <div className="metric utility-card">
+      <span className="utility-icon" aria-hidden="true">{icon}</span>
       <span className="muted">{title}</span>
       <strong>{status}</strong>
       <p>{text}</p>

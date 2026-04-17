@@ -2,6 +2,7 @@ import { ConfidentialPortfolio } from "@/components/ConfidentialPortfolio";
 import { ConfidentialTokenUtilityPanel } from "@/components/ConfidentialTokenUtilityPanel";
 import { InvestorDashboardGate } from "@/components/InvestorDashboardGate";
 import { KycStatusCard } from "@/components/KycStatusCard";
+import { LandingFooter } from "@/components/LandingFooter";
 import { LandingHero } from "@/components/LandingHero";
 import { MultiAssetProtocolDashboard } from "@/components/MultiAssetProtocolDashboard";
 import { OnChainDataInsightsPanel } from "@/components/OnChainDataInsightsPanel";
@@ -48,6 +49,8 @@ export default function HomePage() {
           <Web3LLMAssistant />
         </InvestorDashboardGate>
       </div>
+
+      <LandingFooter />
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { deployedAssets } from "@/lib/deployed-assets";
+import { uiLinks } from "@/lib/ui-links";
 
 const navItems = [
   ["📊", "Markets"],
@@ -29,13 +30,16 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <div className="network-pill">⬡ Arbitrum Sepolia</div>
         <nav className="top-actions" aria-label="Quick links">
-          <a href="https://www.alchemy.com/faucets/arbitrum-sepolia" target="_blank" rel="noreferrer">
+          <a href="https://cdefi.iex.ec/" target="_blank" rel="noreferrer">
             Faucet
           </a>
-          <a href="https://github.com/Darouma01/private-onchain-stocks" target="_blank" rel="noreferrer">
+          <a href={uiLinks.github} target="_blank" rel="noreferrer">
             GitHub
           </a>
-          <a href="https://github.com/Darouma01/private-onchain-stocks/tree/main/docs" target="_blank" rel="noreferrer">
+          <a href={uiLinks.demo} target="_blank" rel="noreferrer">
+            Demo Video
+          </a>
+          <a href={uiLinks.docs} target="_blank" rel="noreferrer">
             Docs
           </a>
           <span className="status-dot neutral">KYC</span>

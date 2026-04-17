@@ -133,6 +133,35 @@ export function SparklineChart({ positive = true, values }: { positive?: boolean
   );
 }
 
+export function EmptyState({
+  action,
+  href,
+  text,
+  title,
+}: {
+  action: string;
+  href: string;
+  text: string;
+  title: string;
+}) {
+  return (
+    <div className="empty-state">
+      <div className="empty-illustration">🔒</div>
+      <strong>{title}</strong>
+      <p>{text}</p>
+      <a href={href}>{action}</a>
+    </div>
+  );
+}
+
+export function SkeletonRows({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="skeleton-rows" aria-label="Loading">
+      {Array.from({ length: rows }, (_, index) => <span key={index} />)}
+    </div>
+  );
+}
+
 function assetBadge(asset: DeployedAsset) {
   if (asset.category === AssetCategory.STOCK_US) return "🇺🇸";
   if (asset.category === AssetCategory.STOCK_INTL) return "🌍";

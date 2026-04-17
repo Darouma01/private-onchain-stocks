@@ -21,7 +21,7 @@ import {
   shortAddress,
   txUrl,
 } from "@/lib/contracts";
-import { AddressDisplay, AssetSelector, ConfidentialBadge, KYCBadge, NetworkBadge, PriceDisplay, TierBadge } from "@/components/SharedUi";
+import { AddressDisplay, AssetSelector, ConfidentialBadge, EmptyState, KYCBadge, NetworkBadge, PriceDisplay, SkeletonRows, TierBadge } from "@/components/SharedUi";
 
 type Tab = "Markets" | "Portfolio" | "Trade" | "Dividends" | "Governance" | "Collateral" | "AI Tools";
 type MarketSortKey = "symbol" | "name" | "category" | "price" | "change" | "kyc";
@@ -286,36 +286,40 @@ function MarketsTab({
       </div>
 
       <div className="market-table-shell">
-        <table className="market-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <SortableHeader active={sortKey === "symbol"} direction={sortDirection} label="Asset" onClick={() => changeSort("symbol")} />
-              <SortableHeader active={sortKey === "name"} direction={sortDirection} label="Name" onClick={() => changeSort("name")} />
-              <SortableHeader active={sortKey === "category"} direction={sortDirection} label="Category" onClick={() => changeSort("category")} />
-              <SortableHeader active={sortKey === "price"} direction={sortDirection} label="Price" onClick={() => changeSort("price")} />
-              <SortableHeader active={sortKey === "change"} direction={sortDirection} label="24h Change" onClick={() => changeSort("change")} />
-              <th>7D</th>
-              <SortableHeader active={sortKey === "kyc"} direction={sortDirection} label="KYC" onClick={() => changeSort("kyc")} />
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedAssets.map((asset, index) => (
-              <AssetTableRow
-                asset={asset}
-                favorite={favorites.includes(asset.symbol)}
-                index={index + 1}
-                isSelected={selectedSymbol === asset.symbol}
-                key={asset.symbol}
-                onDetails={() => setDetailAsset(asset)}
-                onSelect={() => setSelectedSymbol(asset.symbol)}
-                onToggleFavorite={() => toggleFavorite(asset.symbol)}
-              />
-            ))}
-          </tbody>
-        </table>
+        {sortedAssets.length === 0 ? (
+          <EmptyState action="View Markets →" href="#markets" text="Try a different search term or category filter." title="No markets found" />
+        ) : (
+          <table className="market-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <SortableHeader active={sortKey === "symbol"} direction={sortDirection} label="Asset" onClick={() => changeSort("symbol")} />
+                <SortableHeader active={sortKey === "name"} direction={sortDirection} label="Name" onClick={() => changeSort("name")} />
+                <SortableHeader active={sortKey === "category"} direction={sortDirection} label="Category" onClick={() => changeSort("category")} />
+                <SortableHeader active={sortKey === "price"} direction={sortDirection} label="Price" onClick={() => changeSort("price")} />
+                <SortableHeader active={sortKey === "change"} direction={sortDirection} label="24h Change" onClick={() => changeSort("change")} />
+                <th>7D</th>
+                <SortableHeader active={sortKey === "kyc"} direction={sortDirection} label="KYC" onClick={() => changeSort("kyc")} />
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedAssets.map((asset, index) => (
+                <AssetTableRow
+                  asset={asset}
+                  favorite={favorites.includes(asset.symbol)}
+                  index={index + 1}
+                  isSelected={selectedSymbol === asset.symbol}
+                  key={asset.symbol}
+                  onDetails={() => setDetailAsset(asset)}
+                  onSelect={() => setSelectedSymbol(asset.symbol)}
+                  onToggleFavorite={() => toggleFavorite(asset.symbol)}
+                />
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <AssetActionPanel asset={selectedAsset} />
@@ -653,7 +657,9 @@ function PortfolioTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
           <span className="status-dot neutral">{holdings.length} positions</span>
         </div>
         <div className="holdings-table-shell">
-          <table className="holdings-table">
+          {holdings.length === 0 ? (
+            <EmptyState action="Go to Trade →" href="#trade" text="Wrap your first token to get started." title="No assets yet" />
+          ) : <table className="holdings-table">
             <thead>
               <tr>
                 <th>Asset</th>
@@ -676,7 +682,7 @@ function PortfolioTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
                 />
               ))}
             </tbody>
-          </table>
+          </table>}
         </div>
       </section>
 
@@ -856,6 +862,7 @@ function TradeTab({
                 <span>Estimated gas</span>
                 <strong>~0.00008 ETH</strong>
               </div>
+              <SkeletonRows rows={1} />
               <div className="privacy-notice">🔒 Your balance will be encrypted on-chain</div>
               <button disabled={selectedAsset.requiresKYC} type="button">Wrap to Confidential</button>
               <div className="trade-steps">
@@ -983,6 +990,7 @@ function TradeTab({
             ))}
           </div>
           <div className="trade-chart-card">
+            <SkeletonRows rows={1} />
             <ResponsiveContainer height={250} width="100%">
               <LineChart data={chartData} margin={{ bottom: 8, left: 0, right: 12, top: 12 }}>
                 <XAxis dataKey="label" hide />
@@ -1345,7 +1353,9 @@ function DividendsTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {rows.length === 0 ? (
+                <tr><td colSpan={6}><EmptyState action="View Markets →" href="#markets" text="Hold confidential stocks or crypto to earn dividends." title="No eligible rewards" /></td></tr>
+              ) : rows.map((row) => {
                 const revealed = revealedRows.includes(row.asset.symbol) || row.status === "Claimed";
                 return (
                   <tr key={`${row.asset.symbol}-${row.period}`}>
@@ -1407,7 +1417,9 @@ function GovernanceTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
       </section>
 
       <section className="proposal-grid">
-        {proposals.map((proposal) => (
+        {proposals.length === 0 ? (
+          <EmptyState action="Create Proposal" href="#governance" text="Be the first to create one." title="No active proposals" />
+        ) : proposals.map((proposal) => (
           <article className="proposal-card" key={proposal.title}>
             <div className="proposal-topline">
               <span className={`proposal-status ${proposal.status.toLowerCase()}`}>{proposal.status}</span>
@@ -1488,6 +1500,9 @@ function CollateralTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
       </section>
 
       <section className="collateral-table-grid">
+        {collateral.length === 0 && loans.length === 0 ? (
+          <EmptyState action="Add Collateral →" href="#collateral" text="Lock assets as confidential collateral to borrow." title="No collateral positions" />
+        ) : null}
         <CollateralTable title="Collateral Assets" rows={collateral} revealed={revealed} onReveal={reveal} />
         <LoanTable rows={loans} revealed={revealed} onReveal={reveal} />
       </section>
@@ -1685,6 +1700,7 @@ function AiToolsTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
           </div>
           <button type="button">Run Audit</button>
           <div className="audit-results">
+            <SkeletonRows rows={2} />
             <div className="risk-score low">Risk score: LOW</div>
             <ul>
               <li><span className="severity low">LOW</span> Events preserve encrypted transfer amounts</li>
