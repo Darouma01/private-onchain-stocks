@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatEther, parseEther } from "viem";
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { AssetCategory } from "@/deploy/assets.config";
@@ -30,6 +30,13 @@ type ActionState = {
   label: string;
   hash?: `0x${string}`;
   error?: string;
+};
+
+type PortfolioHolding = {
+  asset: DeployedAsset;
+  balance: number;
+  value: number;
+  pnl: number;
 };
 
 const tabs: Tab[] = ["Markets", "Portfolio", "Trade", "Dividends", "Governance", "Collateral", "AI Tools"];
@@ -502,20 +509,257 @@ function AssetDetailPanel({ asset, onClose, onSelect }: { asset: DeployedAsset; 
 }
 
 function PortfolioTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
+  const [revealedAll, setRevealedAll] = useState(false);
+  const [revealedRows, setRevealedRows] = useState<string[]>([]);
+  const [range, setRange] = useState<"7D" | "30D" | "ALL">("7D");
+  const [tiersOpen, setTiersOpen] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState("Just now");
+  const holdings = useMemo(() => portfolioHoldings(), []);
+  const totalValue = holdings.reduce((total, item) => total + item.value, 0);
+  const totalChange = holdings.reduce((total, item) => total + item.pnl, 0);
+  const chartData = portfolioChartData(range, totalValue);
+  const allocation = portfolioAllocation(holdings);
+
+  function isRowRevealed(symbol: string) {
+    return revealedAll || revealedRows.includes(symbol);
+  }
+
+  function toggleRow(symbol: string) {
+    setRevealedRows((current) => (current.includes(symbol) ? current.filter((item) => item !== symbol) : [...current, symbol]));
+  }
+
+  useEffect(() => {
+    setLastUpdated(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+  }, []);
+
   return (
-    <div className="stack">
+    <div className="portfolio-dashboard">
+      <section className="portfolio-hero">
+        <div>
+          <span className="muted">Total Portfolio Value</span>
+          <strong>{revealedAll ? formatMarketPrice(totalValue) : "🔒 ••••••"}</strong>
+          <p className={totalChange >= 0 ? "change-up" : "change-down"}>
+            {revealedAll ? `${totalChange >= 0 ? "▲" : "▼"} ${formatMarketPrice(Math.abs(totalChange))} (${((totalChange / totalValue) * 100).toFixed(2)}%)` : "🔒 24h change hidden"}
+          </p>
+        </div>
+        <div className="portfolio-hero-actions">
+          <button onClick={() => setRevealedAll(true)} type="button">Reveal All</button>
+          <button className="secondary" onClick={() => setRevealedAll(false)} type="button">Hide All</button>
+          <span>Last updated {lastUpdated}</span>
+        </div>
+      </section>
+
+      <section className="portfolio-chart-grid">
+        <div className={revealedAll ? "portfolio-chart-card" : "portfolio-chart-card hidden"}>
+          <div className="row">
+            <div>
+              <strong>Portfolio Value</strong>
+              <p className="muted">Encrypted balances revealed through TEE disclosure.</p>
+            </div>
+            <div className="range-tabs compact">
+              {(["7D", "30D", "ALL"] as const).map((item) => (
+                <button className={range === item ? "active" : undefined} key={item} onClick={() => setRange(item)} type="button">
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="portfolio-chart-canvas">
+            {!revealedAll ? <div className="chart-hidden-overlay">🔒 Chart Hidden</div> : null}
+            <ResponsiveContainer height={240} width="100%">
+              <LineChart data={chartData} margin={{ bottom: 12, left: 0, right: 16, top: 16 }}>
+                <XAxis dataKey="label" stroke="#475569" tick={{ fill: "#94A3B8", fontSize: 11 }} />
+                <YAxis hide domain={["dataMin", "dataMax"]} />
+                <Tooltip
+                  contentStyle={{ background: "#111318", border: "1px solid #2A2D3A", borderRadius: 8, color: "#F8FAFC" }}
+                  formatter={(value) => [formatMarketPrice(Number(value)), "Value"]}
+                />
+                <Line dataKey="value" dot={false} isAnimationActive={false} stroke="#10B981" strokeWidth={3} type="monotone" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="portfolio-chart-card allocation-card">
+          <div>
+            <strong>Asset Allocation</strong>
+            <p className="muted">Category percentages stay visible; values remain encrypted until reveal.</p>
+          </div>
+          <div className="allocation-layout">
+            <ResponsiveContainer height={230} width="100%">
+              <PieChart>
+                <Pie data={allocation} dataKey="percent" innerRadius={62} outerRadius={92} paddingAngle={3}>
+                  {allocation.map((item) => (
+                    <Cell fill={item.color} key={item.name} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="allocation-legend">
+              {allocation.map((item) => (
+                <div key={item.name}>
+                  <span style={{ background: item.color }} />
+                  <strong>{item.name}</strong>
+                  <em>{item.percent.toFixed(1)}%</em>
+                  <small>{revealedAll ? formatMarketPrice(item.value) : "🔒 Hidden"}</small>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="portfolio-panel">
+        <div className="row">
+          <div>
+            <strong>Confidential Holdings</strong>
+            <p className="muted">Balances and values stay encrypted until the holder reveals them.</p>
+          </div>
+          <span className="status-dot neutral">{holdings.length} positions</span>
+        </div>
+        <div className="holdings-table-shell">
+          <table className="holdings-table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Name</th>
+                <th>Balance</th>
+                <th>Value</th>
+                <th>24h P&amp;L</th>
+                <th>Allocation</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holdings.map((holding) => (
+                <PortfolioHoldingRow
+                  holding={holding}
+                  key={holding.asset.symbol}
+                  revealed={isRowRevealed(holding.asset.symbol)}
+                  totalValue={totalValue}
+                  onToggleReveal={() => toggleRow(holding.asset.symbol)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="portfolio-lower-grid">
+        <div className="tier-card">
+          <div className="tier-card-header">
+            <div>
+              <span className="muted">Current tier</span>
+              <strong>Tier 2 🥈 Premium</strong>
+            </div>
+            <span className="tier-badge">Encrypted threshold</span>
+          </div>
+          <div className="tier-progress">
+            <span style={{ width: "68%" }} />
+          </div>
+          <p className="muted">X more tokens needed for Tier 3 without revealing your current balance.</p>
+          <div className="tier-checklist">
+            <span>✓ Confidential transfers</span>
+            <span>✓ Dividend reveal access</span>
+            <span>✓ Collateral proof requests</span>
+            <span className="locked">□ Institutional data room</span>
+          </div>
+          <button className="ghost-button" onClick={() => setTiersOpen((current) => !current)} type="button">
+            How tiers work
+          </button>
+          {tiersOpen ? (
+            <p className="tier-explainer">
+              Nox verifies encrypted portfolio thresholds and returns only a tier result. The dashboard never needs to
+              expose exact token balances to unlock features.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="activity-card">
+          <div>
+            <strong>Recent Activity</strong>
+            <p className="muted">Amounts remain hidden unless individually revealed.</p>
+          </div>
+          <div className="activity-feed">
+            {portfolioActivity().map((item) => (
+              <div className="activity-item" key={item.label}>
+                <span className={item.tone} />
+                <div>
+                  <strong>{item.label}</strong>
+                  <small>{item.time} · Amount 🔒</small>
+                </div>
+                <a href={txUrl(item.hash)} rel="noreferrer" target="_blank">Arbiscan</a>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <AssetActionPanel asset={selectedAsset} />
-      <div className="utility-layout">
-        <UtilityBlock
-          title="Hidden Holdings"
-          text="Portfolio rows use confidential wrapper contracts. Balances stay hidden as encrypted handles until the owner requests a Nox disclosure."
-        />
-        <UtilityBlock
-          title="Private Tiering"
-          text="Dashboard sections can call encrypted balance or portfolio threshold checks instead of reading public token balances."
-        />
-      </div>
     </div>
+  );
+}
+
+function PortfolioHoldingRow({
+  holding,
+  revealed,
+  totalValue,
+  onToggleReveal,
+}: {
+  holding: PortfolioHolding;
+  revealed: boolean;
+  totalValue: number;
+  onToggleReveal: () => void;
+}) {
+  const allocation = (holding.value / totalValue) * 100;
+  return (
+    <tr>
+      <td>
+        <div className="asset-cell">
+          <span className={`asset-token-icon ${marketDisplay(holding.asset).tone}`}>{assetBadge(holding.asset)}</span>
+          <strong>{holding.asset.symbol}</strong>
+        </div>
+      </td>
+      <td className="name-cell">{holding.asset.name}</td>
+      <td>
+        <div className="hidden-value-cell">
+          <span>{revealed ? `${holding.balance.toFixed(2)} ${holding.asset.symbol}` : "🔒 ••••"}</span>
+          <button className="ghost-button" onClick={onToggleReveal} type="button">{revealed ? "Hide" : "Reveal"}</button>
+        </div>
+      </td>
+      <td className="price-cell">{revealed ? formatMarketPrice(holding.value) : "🔒 Hidden"}</td>
+      <td>
+        <span className={holding.pnl >= 0 ? "change-up" : "change-down"}>
+          {holding.pnl >= 0 ? "▲" : "▼"} {formatMarketPrice(Math.abs(holding.pnl))}
+        </span>
+      </td>
+      <td>
+        <div className="row-allocation">
+          <svg viewBox="0 0 36 36" aria-label={`${allocation.toFixed(1)} percent allocation`}>
+            <circle cx="18" cy="18" fill="none" r="15" stroke="#2A2D3A" strokeWidth="4" />
+            <circle
+              cx="18"
+              cy="18"
+              fill="none"
+              r="15"
+              stroke="#6366F1"
+              strokeDasharray={`${allocation} ${100 - allocation}`}
+              strokeLinecap="round"
+              strokeWidth="4"
+              transform="rotate(-90 18 18)"
+            />
+          </svg>
+          <span>{allocation.toFixed(1)}%</span>
+        </div>
+      </td>
+      <td>
+        <div className="table-actions">
+          <button type="button">Transfer</button>
+          <button className="secondary" type="button">Unwrap</button>
+          <button className="ghost-button" type="button">Use as Collateral</button>
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -880,6 +1124,65 @@ function UtilityBlock({ title, text }: { title: string; text: string }) {
       <p className="muted">{text}</p>
     </div>
   );
+}
+
+function portfolioHoldings(): PortfolioHolding[] {
+  const symbols = ["cAAPL", "cTSLA", "cBTC", "cETH", "cGOLD", "cUSDC", "cNVDA", "cASML", "cOIL", "cDAI"];
+  return symbols
+    .map((symbol, index) => {
+      const asset = deployedAssets.find((item) => item.symbol === symbol);
+      if (!asset) return null;
+      const market = marketDisplay(asset);
+      const balance = asset.category === AssetCategory.STABLECOIN ? 5000 + index * 350 : 4.25 + index * 1.7;
+      const value = balance * market.price;
+      const pnl = value * (market.change / 100);
+      return { asset, balance, pnl, value };
+    })
+    .filter((item): item is PortfolioHolding => Boolean(item));
+}
+
+function portfolioChartData(range: "7D" | "30D" | "ALL", totalValue: number) {
+  const points = range === "7D" ? 7 : range === "30D" ? 30 : 18;
+  return Array.from({ length: points }, (_, index) => {
+    const wave = Math.sin(index * 0.75) * totalValue * 0.018;
+    const drift = totalValue * 0.11 * (index / Math.max(points - 1, 1));
+    return {
+      label: range === "ALL" ? `M${index + 1}` : `${index + 1}`,
+      value: totalValue * 0.9 + wave + drift,
+    };
+  });
+}
+
+function portfolioAllocation(holdings: PortfolioHolding[]) {
+  const colors: Record<AssetCategory, string> = {
+    [AssetCategory.STOCK_US]: "#6366F1",
+    [AssetCategory.STOCK_INTL]: "#06B6D4",
+    [AssetCategory.CRYPTO]: "#10B981",
+    [AssetCategory.COMMODITY]: "#F59E0B",
+    [AssetCategory.STABLECOIN]: "#8B5CF6",
+  };
+  const total = holdings.reduce((sum, holding) => sum + holding.value, 0);
+  return deployedAssetCategories.map((category) => {
+    const value = holdings
+      .filter((holding) => holding.asset.category === category)
+      .reduce((sum, holding) => sum + holding.value, 0);
+    return {
+      color: colors[category],
+      name: categoryLabels[category],
+      percent: total > 0 ? (value / total) * 100 : 0,
+      value,
+    };
+  });
+}
+
+function portfolioActivity() {
+  const fallbackHash = "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`;
+  return [
+    { hash: fallbackHash, label: "Wrapped cAAPL", time: "2h ago", tone: "activity-wrap" },
+    { hash: fallbackHash, label: "Sent cBTC confidentially", time: "1d ago", tone: "activity-transfer" },
+    { hash: fallbackHash, label: "Received cTSLA dividend", time: "3d ago", tone: "activity-dividend" },
+    { hash: fallbackHash, label: "Locked cGOLD as collateral", time: "5d ago", tone: "activity-collateral" },
+  ];
 }
 
 function marketDisplay(asset: DeployedAsset) {
