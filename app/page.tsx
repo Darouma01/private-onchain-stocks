@@ -1,4 +1,3 @@
-import { ConfidentialPortfolio } from "@/components/ConfidentialPortfolio";
 import { ConfidentialTokenUtilityPanel } from "@/components/ConfidentialTokenUtilityPanel";
 import { InvestorDashboardGate } from "@/components/InvestorDashboardGate";
 import { KycStatusCard } from "@/components/KycStatusCard";
@@ -24,8 +23,7 @@ export default function HomePage() {
         <MultiAssetProtocolDashboard />
       </div>
 
-      <div className="primary-grid" id="portfolio-utilities">
-        <ConfidentialPortfolio />
+      <div id="portfolio-utilities">
         <ConfidentialTokenUtilityPanel />
       </div>
 
