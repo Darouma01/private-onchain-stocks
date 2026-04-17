@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { formatEther, parseEther } from "viem";
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { AssetCategory } from "@/deploy/assets.config";
@@ -22,6 +22,8 @@ import {
 } from "@/lib/contracts";
 
 type Tab = "Markets" | "Portfolio" | "Trade" | "Dividends" | "Governance" | "Collateral" | "AI Tools";
+type MarketSortKey = "symbol" | "name" | "category" | "price" | "change" | "kyc";
+type SortDirection = "asc" | "desc";
 
 type ActionState = {
   label: string;
@@ -30,6 +32,14 @@ type ActionState = {
 };
 
 const tabs: Tab[] = ["Markets", "Portfolio", "Trade", "Dividends", "Governance", "Collateral", "AI Tools"];
+const categoryPills: Array<{ value: AssetCategory | "ALL"; label: string; icon: string }> = [
+  { value: "ALL", label: "All", icon: "61" },
+  { value: AssetCategory.STOCK_US, label: "US Stocks", icon: "🇺🇸" },
+  { value: AssetCategory.STOCK_INTL, label: "International", icon: "🌍" },
+  { value: AssetCategory.CRYPTO, label: "Crypto", icon: "🪙" },
+  { value: AssetCategory.COMMODITY, label: "Commodities", icon: "🏗️" },
+  { value: AssetCategory.STABLECOIN, label: "Stablecoins", icon: "💵" },
+];
 
 export function MultiAssetProtocolDashboard() {
   const [tab, setTab] = useState<Tab>("Markets");
@@ -143,82 +153,331 @@ function MarketsTab({
   setQuery: (query: string) => void;
   setSelectedSymbol: (symbol: string) => void;
 }) {
+  const [sortKey, setSortKey] = useState<MarketSortKey>("symbol");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [detailAsset, setDetailAsset] = useState<DeployedAsset | null>(null);
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("private-stocks:favorites");
+      if (stored) setFavorites(JSON.parse(stored) as string[]);
+    } catch {
+      setFavorites([]);
+    }
+  }, []);
+
+  const sortedAssets = useMemo(() => {
+    return [...filteredAssets].sort((left, right) => {
+      const leftMarket = marketDisplay(left);
+      const rightMarket = marketDisplay(right);
+      const direction = sortDirection === "asc" ? 1 : -1;
+      const compareText = (a: string, b: string) => a.localeCompare(b) * direction;
+
+      if (sortKey === "price") return (leftMarket.price - rightMarket.price) * direction;
+      if (sortKey === "change") return (leftMarket.change - rightMarket.change) * direction;
+      if (sortKey === "kyc") return (Number(left.requiresKYC) - Number(right.requiresKYC)) * direction;
+      if (sortKey === "category") return compareText(categoryLabels[left.category], categoryLabels[right.category]);
+      if (sortKey === "name") return compareText(left.name, right.name);
+      return compareText(left.symbol, right.symbol);
+    });
+  }, [filteredAssets, sortDirection, sortKey]);
+
+  function countForCategory(item: AssetCategory | "ALL") {
+    if (item === "ALL") return deployedAssets.length;
+    return categoryCounts.find((entry) => entry.category === item)?.count ?? 0;
+  }
+
+  function toggleFavorite(symbol: string) {
+    setFavorites((current) => {
+      const next = current.includes(symbol) ? current.filter((item) => item !== symbol) : [...current, symbol];
+      window.localStorage.setItem("private-stocks:favorites", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function changeSort(nextKey: MarketSortKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(nextKey);
+    setSortDirection(nextKey === "price" || nextKey === "change" ? "desc" : "asc");
+  }
+
   return (
     <div className="stack">
-      <div className="market-controls">
+      <div className="market-overview-grid">
+        <MarketStat label="Total assets" value="61" change="+61 live" tone="good" />
+        <MarketStat label="Total categories" value="5" change="Full registry" tone="neutral" />
+        <MarketStat label="Protocol TVL" value="Encrypted" change="TEE gated" tone="private" />
+        <MarketStat label="24h volume" value="Private" change="Aggregate hidden" tone="private" />
+        <MarketStat label="Active holders" value="Registry" change="Live checks" tone="good" />
+      </div>
+
+      <div className="market-toolbar">
         <input
           aria-label="Search deployed assets"
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search symbol, name, or country"
           value={query}
         />
-        <select
-          aria-label="Filter asset category"
-          onChange={(event) => setCategory(event.target.value as AssetCategory | "ALL")}
-          value={category}
-        >
-          <option value="ALL">All categories</option>
-          {deployedAssetCategories.map((item) => (
-            <option key={item} value={item}>
-              {categoryLabels[item]}
-            </option>
-          ))}
-        </select>
+        <span className="market-result-count">{sortedAssets.length} markets</span>
       </div>
 
-      <div className="category-strip">
-        {categoryCounts.map((item) => (
-          <button className="category-button" key={item.category} onClick={() => setCategory(item.category)} type="button">
-            <strong>{item.count}</strong>
-            <span>{categoryLabels[item.category]}</span>
+      <div className="market-pill-tabs" role="tablist" aria-label="Asset categories">
+        {categoryPills.map((item) => (
+          <button
+            aria-selected={category === item.value}
+            className={category === item.value ? "market-pill active" : "market-pill"}
+            key={item.value}
+            onClick={() => setCategory(item.value)}
+            role="tab"
+            type="button"
+          >
+            <span>{item.icon}</span>
+            <strong>{item.label}</strong>
+            <em>{countForCategory(item.value)}</em>
           </button>
         ))}
       </div>
 
-      <div className="asset-grid">
-        {filteredAssets.map((asset) => (
-          <AssetCard
-            asset={asset}
-            isSelected={selectedSymbol === asset.symbol}
-            key={asset.symbol}
-            onSelect={() => setSelectedSymbol(asset.symbol)}
-          />
-        ))}
+      <div className="market-table-shell">
+        <table className="market-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <SortableHeader active={sortKey === "symbol"} direction={sortDirection} label="Asset" onClick={() => changeSort("symbol")} />
+              <SortableHeader active={sortKey === "name"} direction={sortDirection} label="Name" onClick={() => changeSort("name")} />
+              <SortableHeader active={sortKey === "category"} direction={sortDirection} label="Category" onClick={() => changeSort("category")} />
+              <SortableHeader active={sortKey === "price"} direction={sortDirection} label="Price" onClick={() => changeSort("price")} />
+              <SortableHeader active={sortKey === "change"} direction={sortDirection} label="24h Change" onClick={() => changeSort("change")} />
+              <th>7D</th>
+              <SortableHeader active={sortKey === "kyc"} direction={sortDirection} label="KYC" onClick={() => changeSort("kyc")} />
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedAssets.map((asset, index) => (
+              <AssetTableRow
+                asset={asset}
+                favorite={favorites.includes(asset.symbol)}
+                index={index + 1}
+                isSelected={selectedSymbol === asset.symbol}
+                key={asset.symbol}
+                onDetails={() => setDetailAsset(asset)}
+                onSelect={() => setSelectedSymbol(asset.symbol)}
+                onToggleFavorite={() => toggleFavorite(asset.symbol)}
+              />
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <AssetActionPanel asset={selectedAsset} />
+      {detailAsset ? (
+        <AssetDetailPanel
+          asset={detailAsset}
+          onClose={() => setDetailAsset(null)}
+          onSelect={() => {
+            setSelectedSymbol(detailAsset.symbol);
+            setDetailAsset(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
-function AssetCard({ asset, isSelected, onSelect }: { asset: DeployedAsset; isSelected: boolean; onSelect: () => void }) {
+function MarketStat({ label, value, change, tone }: { label: string; value: string; change: string; tone: "good" | "neutral" | "private" }) {
   return (
-    <article className={isSelected ? "asset-card selected" : "asset-card"}>
-      <div className="row">
-        <div>
-          <strong>{asset.symbol}</strong>
-          <p className="muted">{asset.name}</p>
-        </div>
-        <span className={asset.requiresKYC ? "status-dot neutral" : "status-dot good"}>
-          {asset.requiresKYC ? "KYC" : "Open"}
-        </span>
-      </div>
-      <div className="asset-meta">
-        <span>{categoryLabels[asset.category]}</span>
-        <span>{asset.country ?? "Global"}</span>
-      </div>
-      <div className="address-pair">
-        <a href={addressUrl(asset.baseAddress)} rel="noreferrer" target="_blank">
-          Base {shortAddress(asset.baseAddress)}
-        </a>
-        <a href={addressUrl(asset.wrapperAddress)} rel="noreferrer" target="_blank">
-          Wrapper {shortAddress(asset.wrapperAddress)}
-        </a>
-      </div>
-      <button className="secondary" onClick={onSelect} type="button">
-        Use {asset.symbol}
+    <div className={`market-stat ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{change}</small>
+    </div>
+  );
+}
+
+function SortableHeader({
+  active,
+  direction,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  direction: SortDirection;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <th>
+      <button className={active ? "sort-header active" : "sort-header"} onClick={onClick} type="button">
+        {label}
+        <span>{active ? (direction === "asc" ? "▲" : "▼") : "↕"}</span>
       </button>
-    </article>
+    </th>
+  );
+}
+
+function AssetTableRow({
+  asset,
+  favorite,
+  index,
+  isSelected,
+  onDetails,
+  onSelect,
+  onToggleFavorite,
+}: {
+  asset: DeployedAsset;
+  favorite: boolean;
+  index: number;
+  isSelected: boolean;
+  onDetails: () => void;
+  onSelect: () => void;
+  onToggleFavorite: () => void;
+}) {
+  const market = marketDisplay(asset);
+  return (
+    <tr className={isSelected ? "selected" : undefined}>
+      <td className="index-cell">{index}</td>
+      <td>
+        <div className="asset-cell">
+          <button
+            aria-label={favorite ? `Remove ${asset.symbol} from favorites` : `Add ${asset.symbol} to favorites`}
+            className={favorite ? "favorite-star active" : "favorite-star"}
+            onClick={onToggleFavorite}
+            type="button"
+          >
+            {favorite ? "★" : "☆"}
+          </button>
+          <span className={`asset-token-icon ${market.tone}`}>{assetBadge(asset)}</span>
+          <div>
+            <strong>{asset.symbol}</strong>
+            <small>{asset.country ?? "Global"}</small>
+          </div>
+        </div>
+      </td>
+      <td className="name-cell">{asset.name}</td>
+      <td>
+        <span className="category-chip">{categoryLabels[asset.category]}</span>
+      </td>
+      <td className="price-cell">{formatMarketPrice(market.price)}</td>
+      <td>
+        <span className={market.change >= 0 ? "change-up" : "change-down"}>
+          {market.change >= 0 ? "▲" : "▼"} {Math.abs(market.change).toFixed(2)}%
+        </span>
+      </td>
+      <td>
+        <Sparkline values={market.sparkline} positive={market.change >= 0} />
+      </td>
+      <td>
+        <span className={asset.requiresKYC ? "kyc-pill required" : "kyc-pill open"}>
+          {asset.requiresKYC ? "KYC Required" : "Open"}
+        </span>
+      </td>
+      <td>
+        <span className="live-pill">Live 🟢</span>
+      </td>
+      <td>
+        <div className="table-actions">
+          <button onClick={onSelect} type="button">Wrap</button>
+          <button className="secondary" onClick={onSelect} type="button">Trade</button>
+          <button className="ghost-button" onClick={onDetails} type="button">Details</button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function Sparkline({ values, positive }: { values: number[]; positive: boolean }) {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const points = values
+    .map((value, index) => {
+      const x = (index / (values.length - 1)) * 80;
+      const y = 26 - ((value - min) / range) * 22;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  return (
+    <svg className="sparkline" role="img" viewBox="0 0 80 30" aria-label="7 day price history">
+      <polyline fill="none" points={points} stroke={positive ? "#10B981" : "#EF4444"} strokeLinecap="round" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function AssetDetailPanel({ asset, onClose, onSelect }: { asset: DeployedAsset; onClose: () => void; onSelect: () => void }) {
+  const [chartRange, setChartRange] = useState<"1D" | "7D" | "30D">("7D");
+  const market = marketDisplay(asset);
+  const chartValues = chartRange === "1D" ? market.sparkline.slice(-6) : chartRange === "7D" ? market.sparkline : [...market.sparkline, ...market.sparkline].slice(0, 14);
+
+  async function copyAddress(value: string) {
+    await navigator.clipboard.writeText(value);
+  }
+
+  return (
+    <div className="asset-drawer-overlay" role="dialog" aria-modal="true" aria-label={`${asset.symbol} asset details`}>
+      <aside className="asset-drawer">
+        <div className="drawer-header">
+          <div className="asset-cell">
+            <span className={`asset-token-icon large ${market.tone}`}>{assetBadge(asset)}</span>
+            <div>
+              <span className="muted">{asset.country ?? "Global"} · {categoryLabels[asset.category]}</span>
+              <h3>{asset.symbol} · {asset.name}</h3>
+            </div>
+          </div>
+          <button className="ghost-button close-button" onClick={onClose} type="button">Close</button>
+        </div>
+
+        <div className="drawer-price-row">
+          <strong>{formatMarketPrice(market.price)}</strong>
+          <span className={market.change >= 0 ? "change-up" : "change-down"}>
+            {market.change >= 0 ? "▲" : "▼"} {Math.abs(market.change).toFixed(2)}%
+          </span>
+        </div>
+
+        <div className="range-tabs">
+          {(["1D", "7D", "30D"] as const).map((item) => (
+            <button className={chartRange === item ? "active" : undefined} key={item} onClick={() => setChartRange(item)} type="button">
+              {item}
+            </button>
+          ))}
+        </div>
+        <div className="drawer-chart">
+          <Sparkline values={chartValues} positive={market.change >= 0} />
+        </div>
+
+        <div className="drawer-section">
+          <strong>Contract addresses</strong>
+          <div className="copy-row">
+            <span>Base</span>
+            <code>{shortAddress(asset.baseAddress)}</code>
+            <button className="secondary" onClick={() => void copyAddress(asset.baseAddress)} type="button">Copy</button>
+            <a href={addressUrl(asset.baseAddress)} rel="noreferrer" target="_blank">Arbiscan</a>
+          </div>
+          <div className="copy-row">
+            <span>Wrapper</span>
+            <code>{shortAddress(asset.wrapperAddress)}</code>
+            <button className="secondary" onClick={() => void copyAddress(asset.wrapperAddress)} type="button">Copy</button>
+            <a href={addressUrl(asset.wrapperAddress)} rel="noreferrer" target="_blank">Arbiscan</a>
+          </div>
+        </div>
+
+        <div className="drawer-section">
+          <strong>KYC requirement</strong>
+          <p className="muted">{asset.requiresKYC ? asset.complianceNotes : "This market is open for wrapping and confidential transfer without KYC gating."}</p>
+        </div>
+
+        <div className="drawer-actions">
+          <button onClick={onSelect} type="button">Wrap this asset</button>
+          <a className="button-link" href={addressUrl(asset.wrapperAddress)} rel="noreferrer" target="_blank">View on Arbiscan</a>
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -601,6 +860,79 @@ function UtilityBlock({ title, text }: { title: string; text: string }) {
       <p className="muted">{text}</p>
     </div>
   );
+}
+
+function marketDisplay(asset: DeployedAsset) {
+  const index = deployedAssets.findIndex((item) => item.symbol === asset.symbol);
+  const basePrice =
+    asset.symbol === "cBTC"
+      ? 67420
+      : asset.symbol === "cETH"
+        ? 3520
+        : asset.symbol === "cGOLD" || asset.symbol === "cXAUT"
+          ? 2348
+          : asset.category === AssetCategory.STABLECOIN
+            ? 1
+            : asset.category === AssetCategory.CRYPTO
+              ? 82 + index * 7.2
+              : asset.category === AssetCategory.COMMODITY
+                ? 42 + index * 3.1
+                : 118 + index * 5.35;
+  const change = Number((((index * 1.37) % 12) - 4.6).toFixed(2));
+  const sparkline = Array.from({ length: 10 }, (_, point) => {
+    const wave = Math.sin((point + index) * 0.82) * (basePrice * 0.015);
+    const drift = (change / 100) * basePrice * (point / 9);
+    return basePrice + wave + drift;
+  });
+  const tone =
+    asset.category === AssetCategory.STOCK_US
+      ? "us"
+      : asset.category === AssetCategory.STOCK_INTL
+        ? "intl"
+        : asset.category === AssetCategory.CRYPTO
+          ? "crypto"
+          : asset.category === AssetCategory.COMMODITY
+            ? "commodity"
+            : "stable";
+
+  return { change, price: basePrice, sparkline, tone };
+}
+
+function formatMarketPrice(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: value >= 100 ? 2 : 4,
+    minimumFractionDigits: value >= 100 ? 2 : 2,
+    style: "currency",
+  }).format(value);
+}
+
+function assetInitials(asset: DeployedAsset) {
+  return asset.symbol.replace(/^c/, "").slice(0, 3).toUpperCase();
+}
+
+function assetBadge(asset: DeployedAsset) {
+  if (asset.category === AssetCategory.STOCK_US) return "🇺🇸";
+  if (asset.category === AssetCategory.STOCK_INTL) return countryFlag(asset.country) ?? "🌍";
+  return assetInitials(asset);
+}
+
+function countryFlag(country?: string) {
+  const flags: Record<string, string> = {
+    AU: "🇦🇺",
+    CH: "🇨🇭",
+    CN: "🇨🇳",
+    DE: "🇩🇪",
+    DK: "🇩🇰",
+    FR: "🇫🇷",
+    HK: "🇭🇰",
+    IN: "🇮🇳",
+    JP: "🇯🇵",
+    KR: "🇰🇷",
+    NL: "🇳🇱",
+    UK: "🇬🇧",
+  };
+  return country ? flags[country] : undefined;
 }
 
 function safeParseEther(value: string) {
