@@ -2,6 +2,7 @@ import { ConfidentialPortfolio } from "@/components/ConfidentialPortfolio";
 import { ConfidentialTokenUtilityPanel } from "@/components/ConfidentialTokenUtilityPanel";
 import { InvestorDashboardGate } from "@/components/InvestorDashboardGate";
 import { KycStatusCard } from "@/components/KycStatusCard";
+import { LandingHero } from "@/components/LandingHero";
 import { MultiAssetProtocolDashboard } from "@/components/MultiAssetProtocolDashboard";
 import { OnChainDataInsightsPanel } from "@/components/OnChainDataInsightsPanel";
 import { SmartContractAuditorWidget } from "@/components/SmartContractAuditorWidget";
@@ -11,13 +12,7 @@ import { Web3LLMAssistant } from "@/components/Web3LLMAssistant";
 export default function HomePage() {
   return (
     <main className="page">
-      <header className="header">
-        <h1>Private Onchain Stocks</h1>
-        <p>
-          Trade and manage 61 deployed confidential assets across stocks, crypto, commodities, and stablecoins with
-          encrypted balances, private payments, holder-gated access, confidential rewards, governance, and collateral.
-        </p>
-      </header>
+      <LandingHero />
 
       <div className="top-grid" id="wallet">
         <WalletPanel />

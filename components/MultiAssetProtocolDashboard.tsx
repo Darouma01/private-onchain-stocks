@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { FormEvent, type CSSProperties, useEffect, useMemo, useState } from "react";
+import { Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatEther, parseEther } from "viem";
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { AssetCategory } from "@/deploy/assets.config";
@@ -21,6 +21,7 @@ import {
   shortAddress,
   txUrl,
 } from "@/lib/contracts";
+import { AddressDisplay, AssetSelector, ConfidentialBadge, KYCBadge, NetworkBadge, PriceDisplay, TierBadge } from "@/components/SharedUi";
 
 type Tab = "Markets" | "Portfolio" | "Trade" | "Dividends" | "Governance" | "Collateral" | "AI Tools";
 type MarketSortKey = "symbol" | "name" | "category" | "price" | "change" | "kyc";
@@ -37,6 +38,18 @@ type PortfolioHolding = {
   balance: number;
   value: number;
   pnl: number;
+};
+
+type GovernanceProposal = {
+  assets: string[];
+  deadline: string;
+  execution: string;
+  excerpt: string;
+  forPct: number;
+  participation: number;
+  status: "Active" | "Closed" | "Passed" | "Failed";
+  title: string;
+  voters: number;
 };
 
 const tabs: Tab[] = ["Markets", "Portfolio", "Trade", "Dividends", "Governance", "Collateral", "AI Tools"];
@@ -792,42 +805,264 @@ function TradeTab({
   selectedAsset: DeployedAsset;
   setSelectedSymbol: (symbol: string) => void;
 }) {
+  const [tradeMode, setTradeMode] = useState<"Wrap" | "Unwrap" | "Transfer" | "Swap">("Wrap");
+  const [chartRange, setChartRange] = useState<"1H" | "1D" | "7D" | "30D">("7D");
+  const [amount, setAmount] = useState("10");
+  const [recipient, setRecipient] = useState("");
+  const [toSymbol, setToSymbol] = useState("cUSDC");
+  const [slippage, setSlippage] = useState("0.5");
+  const toAsset = deployedAssets.find((asset) => asset.symbol === toSymbol) ?? deployedAssets.find((asset) => asset.symbol === "cUSDC") ?? deployedAssets[0];
+  const market = marketDisplay(selectedAsset);
+  const toMarket = marketDisplay(toAsset);
+  const chartData = tradeChartData(selectedAsset, chartRange);
+  const exchangeRate = market.price / toMarket.price;
+  const recipientValid = recipient.length === 0 || /^0x[a-fA-F0-9]{40}$/.test(recipient) || recipient.endsWith(".eth");
+  const tradeTabs = ["Wrap", "Unwrap", "Transfer", "Swap"] as const;
+
+  function reverseSwap() {
+    setSelectedSymbol(toAsset.symbol);
+    setToSymbol(selectedAsset.symbol);
+  }
+
   return (
-    <div className="stack">
-      <div className="action-panel">
-        <div>
-          <strong>Select active asset</strong>
-          <p className="muted">Choose any deployed asset, then approve, wrap, and privately transfer it below.</p>
-        </div>
-        <select onChange={(event) => setSelectedSymbol(event.target.value)} value={selectedAsset.symbol}>
-          {deployedAssets.map((asset) => (
-            <option key={asset.symbol} value={asset.symbol}>
-              {asset.symbol} - {asset.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <AssetActionPanel asset={selectedAsset} />
-      <div className="utility-layout">
-        <SelectedAssetPanel asset={selectedAsset} label="From asset" />
-        <div className="action-panel">
-          <strong>Cross-asset confidential trade</strong>
-          <p className="muted">
-            Use encrypted amount handles for both legs. The wrapper emits asset/from/to metadata but never plaintext
-            amounts.
-          </p>
-          <div className="metric-grid">
-            <div className="metric">
-              <span className="muted">Settlement asset</span>
-              <strong>cUSDC</strong>
+    <div className="trade-dashboard">
+      <section className="trade-layout">
+        <div className="trade-panel">
+          <div className="trade-panel-tabs" role="tablist" aria-label="Trade mode">
+            {tradeTabs.map((item) => (
+              <button className={tradeMode === item ? "active" : undefined} key={item} onClick={() => setTradeMode(item)} type="button">
+                {item}
+              </button>
+            ))}
+          </div>
+
+          {tradeMode === "Wrap" ? (
+            <div className="trade-form-card">
+              <TradeAssetSelect label="Asset" selectedSymbol={selectedAsset.symbol} onChange={setSelectedSymbol} />
+              <div className="trade-amount-box">
+                <label htmlFor="wrap-amount">Amount</label>
+                <div>
+                  <input id="wrap-amount" inputMode="decimal" onChange={(event) => setAmount(event.target.value)} value={amount} />
+                  <button className="ghost-button" onClick={() => setAmount("100")} type="button">MAX</button>
+                </div>
+              </div>
+              <div className="trade-info-grid">
+                <span>KYC status</span>
+                <strong className={selectedAsset.requiresKYC ? "kyc-warning" : "kyc-ok"}>
+                  {selectedAsset.requiresKYC ? "❌ KYC required" : "✅ Open market"}
+                </strong>
+                <span>Price</span>
+                <strong>1 {selectedAsset.symbol} = {formatMarketPrice(market.price)}</strong>
+                <span>Estimated gas</span>
+                <strong>~0.00008 ETH</strong>
+              </div>
+              <div className="privacy-notice">🔒 Your balance will be encrypted on-chain</div>
+              <button disabled={selectedAsset.requiresKYC} type="button">Wrap to Confidential</button>
+              <div className="trade-steps">
+                <span className="active">Approve</span>
+                <span>Wrap</span>
+                <span>Confirmed 🔒</span>
+              </div>
             </div>
-            <div className="metric">
-              <span className="muted">Trade privacy</span>
-              <strong>Encrypted</strong>
+          ) : null}
+
+          {tradeMode === "Unwrap" ? (
+            <div className="trade-form-card">
+              <TradeAssetSelect label="Confidential asset" selectedSymbol={selectedAsset.symbol} onChange={setSelectedSymbol} holdingsOnly />
+              <div className="encrypted-balance-card">
+                <span>Encrypted balance</span>
+                <strong>🔒 0x8f4a...c921</strong>
+                <button className="ghost-button" type="button">Reveal</button>
+              </div>
+              <div className="trade-amount-box">
+                <label htmlFor="unwrap-amount">Amount</label>
+                <input id="unwrap-amount" inputMode="decimal" onChange={(event) => setAmount(event.target.value)} value={amount} />
+              </div>
+              <button type="button">Unwrap to Standard ERC-20</button>
+            </div>
+          ) : null}
+
+          {tradeMode === "Transfer" ? (
+            <div className="trade-form-card">
+              <TradeAssetSelect label="Held asset" selectedSymbol={selectedAsset.symbol} onChange={setSelectedSymbol} holdingsOnly />
+              <label className="trade-field">
+                Recipient ENS or address
+                <input
+                  aria-invalid={!recipientValid}
+                  onChange={(event) => setRecipient(event.target.value)}
+                  placeholder="vitalik.eth or 0x..."
+                  value={recipient}
+                />
+              </label>
+              <div className={recipientValid ? "recipient-status ok" : "recipient-status bad"}>
+                {recipientValid ? "Recipient format valid" : "Enter ENS or a valid 0x address"}
+              </div>
+              <div className="address-book-row">
+                <button className="secondary" onClick={() => setRecipient("0x3CF9BfCD655Bed4A079a6d8a45686a4591c7d76c")} type="button">Demo Investor 1</button>
+                <button className="secondary" onClick={() => setRecipient("0xEE3eA6f858aE84dD6959f241DfC257a2f8fA3f53")} type="button">Demo Investor 2</button>
+              </div>
+              <div className="trade-amount-box">
+                <label htmlFor="transfer-amount">Encrypted amount</label>
+                <input id="transfer-amount" inputMode="decimal" onChange={(event) => setAmount(event.target.value)} value={amount} />
+              </div>
+              <div className="privacy-notice">🔒 Amount hidden on-chain</div>
+              <div className="recipient-status ok">Recipient KYC check: ✅ eligible for confidential transfer</div>
+              <button disabled={!recipientValid || recipient.length === 0} type="button">Review Private Transfer</button>
+            </div>
+          ) : null}
+
+          {tradeMode === "Swap" ? (
+            <div className="trade-form-card">
+              <TradeAssetSelect label="From" selectedSymbol={selectedAsset.symbol} onChange={setSelectedSymbol} />
+              <button className="swap-reverse-button" onClick={reverseSwap} type="button">↓↑</button>
+              <TradeAssetSelect label="To" selectedSymbol={toAsset.symbol} onChange={setToSymbol} />
+              <div className="trade-info-grid">
+                <span>Exchange rate</span>
+                <strong>1 {selectedAsset.symbol} = {exchangeRate.toFixed(4)} {toAsset.symbol}</strong>
+                <span>Price impact</span>
+                <strong className="change-up">0.18%</strong>
+              </div>
+              <div className="slippage-row">
+                <span>Slippage tolerance</span>
+                {["0.1", "0.5", "1"].map((item) => (
+                  <button className={slippage === item ? "active" : undefined} key={item} onClick={() => setSlippage(item)} type="button">
+                    {item}%
+                  </button>
+                ))}
+                <input aria-label="Custom slippage" onChange={(event) => setSlippage(event.target.value)} placeholder="Custom" value={["0.1", "0.5", "1"].includes(slippage) ? "" : slippage} />
+              </div>
+              <div className="privacy-notice">🔒 Trade executes privately inside TEE</div>
+              <div className="quick-pairs">
+                {[
+                  ["cAAPL", "cUSDC"],
+                  ["cBTC", "cETH"],
+                  ["cGOLD", "cUSDT"],
+                  ["cETH", "cUSDC"],
+                ].map(([from, to]) => (
+                  <button
+                    className="secondary"
+                    key={`${from}-${to}`}
+                    onClick={() => {
+                      setSelectedSymbol(from);
+                      setToSymbol(to);
+                    }}
+                    type="button"
+                  >
+                    {from} → {to}
+                  </button>
+                ))}
+              </div>
+              <button type="button">Review Private Swap</button>
+            </div>
+          ) : null}
+
+          <AssetActionPanel asset={selectedAsset} />
+        </div>
+
+        <aside className="trade-market-panel">
+          <div className="trade-price-header">
+            <div className="asset-cell">
+              <span className={`asset-token-icon ${market.tone}`}>{assetBadge(selectedAsset)}</span>
+              <div>
+                <strong>{selectedAsset.symbol}</strong>
+                <small>{selectedAsset.name}</small>
+              </div>
+            </div>
+            <div>
+              <strong>{formatMarketPrice(market.price)}</strong>
+              <span className={market.change >= 0 ? "change-up" : "change-down"}>
+                {market.change >= 0 ? "▲" : "▼"} {Math.abs(market.change).toFixed(2)}%
+              </span>
             </div>
           </div>
-        </div>
+          <div className="range-tabs compact">
+            {(["1H", "1D", "7D", "30D"] as const).map((item) => (
+              <button className={chartRange === item ? "active" : undefined} key={item} onClick={() => setChartRange(item)} type="button">
+                {item}
+              </button>
+            ))}
+          </div>
+          <div className="trade-chart-card">
+            <ResponsiveContainer height={250} width="100%">
+              <LineChart data={chartData} margin={{ bottom: 8, left: 0, right: 12, top: 12 }}>
+                <XAxis dataKey="label" hide />
+                <YAxis hide domain={["dataMin", "dataMax"]} />
+                <Tooltip
+                  contentStyle={{ background: "#111318", border: "1px solid #2A2D3A", borderRadius: 8, color: "#F8FAFC" }}
+                  formatter={(value) => [formatMarketPrice(Number(value)), selectedAsset.symbol]}
+                  labelFormatter={() => chartRange}
+                />
+                <Line dataKey="price" dot={false} isAnimationActive={false} stroke={market.change >= 0 ? "#10B981" : "#EF4444"} strokeWidth={3} type="monotone" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="trade-volume-card">
+            <strong>Volume</strong>
+            <ResponsiveContainer height={96} width="100%">
+              <BarChart data={chartData}>
+                <Bar dataKey="volume" fill="#6366F1" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <RecentTradeHistory />
+        </aside>
+      </section>
+    </div>
+  );
+}
+
+function TradeAssetSelect({
+  holdingsOnly,
+  label,
+  onChange,
+  selectedSymbol,
+}: {
+  holdingsOnly?: boolean;
+  label: string;
+  onChange: (symbol: string) => void;
+  selectedSymbol: string;
+}) {
+  const assets = holdingsOnly ? portfolioHoldings().map((holding) => holding.asset) : deployedAssets;
+  return (
+    <label className="trade-asset-select">
+      {label}
+      <select onChange={(event) => onChange(event.target.value)} value={selectedSymbol}>
+        {deployedAssetCategories.map((category) => (
+          <optgroup key={category} label={categoryLabels[category]}>
+            {assets
+              .filter((asset) => asset.category === category)
+              .map((asset) => {
+                const market = marketDisplay(asset);
+                return (
+                  <option key={asset.symbol} value={asset.symbol}>
+                    {assetBadge(asset)} {asset.symbol} · {formatMarketPrice(market.price)} · {asset.requiresKYC ? "KYC" : "Open"}
+                  </option>
+                );
+              })}
+          </optgroup>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function RecentTradeHistory() {
+  return (
+    <div className="recent-trades-card">
+      <div>
+        <strong>Recent Trades</strong>
+        <p className="muted">Wrap, unwrap, and transfer activity with encrypted amounts.</p>
       </div>
+      {tradeHistory().map((item) => (
+        <div className="recent-trade-row" key={`${item.action}-${item.time}`}>
+          <span className={item.status.toLowerCase()}>{item.status}</span>
+          <div>
+            <strong>{item.action}</strong>
+            <small>{item.time} · Amount 🔒</small>
+          </div>
+          <a href={txUrl(item.hash)} rel="noreferrer" target="_blank">Arbiscan</a>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1053,66 +1288,464 @@ function ActionFeedback({ action, pending, confirmed }: { action: ActionState | 
 }
 
 function DividendsTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
-  const enabled = selectedAsset.category !== AssetCategory.COMMODITY;
+  const [rewardTab, setRewardTab] = useState<"stocks" | "crypto" | "stablecoins" | "commodities">("stocks");
+  const [revealedRows, setRevealedRows] = useState<string[]>([]);
+  const rows = dividendRows(rewardTab);
+  const chartData = monthlyDistributionData();
+
+  function toggleReveal(symbol: string) {
+    setRevealedRows((current) => (current.includes(symbol) ? current.filter((item) => item !== symbol) : [...current, symbol]));
+  }
+
   return (
-    <div className="utility-layout">
-      <SelectedAssetPanel asset={selectedAsset} label="Reward asset" />
-      <UtilityBlock
-        title={enabled ? "Confidential rewards enabled" : "Commodity rewards disabled"}
-        text={
-          enabled
-            ? "Distributions update encrypted holder balances and emit holder/distribution metadata without public reward amounts."
-            : "Commodity assets are excluded from dividend distributions by the confidential wrapper."
-        }
-      />
+    <div className="rewards-dashboard">
+      <section className="rewards-hero">
+        <div className="reward-stat">
+          <span>Total Unclaimed</span>
+          <strong>🔒 Hidden</strong>
+          <button className="ghost-button" type="button">Reveal All</button>
+        </div>
+        <div className="reward-stat">
+          <span>Next Distribution</span>
+          <strong>05d 14h 22m</strong>
+          <small>Quarterly stock cycle</small>
+        </div>
+        <div className="reward-stat">
+          <span>Your Eligible Assets</span>
+          <strong>17 of 61</strong>
+          <small>{selectedAsset.symbol} selected</small>
+        </div>
+        <button type="button">Claim All</button>
+      </section>
+
+      <div className="reward-tabs">
+        {[
+          ["stocks", "Stock Dividends"],
+          ["crypto", "Crypto Rewards"],
+          ["stablecoins", "Stablecoin Yield"],
+          ["commodities", "Commodity (N/A)"],
+        ].map(([value, label]) => (
+          <button className={rewardTab === value ? "active" : undefined} key={value} onClick={() => setRewardTab(value as typeof rewardTab)} type="button">
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <section className="rewards-grid">
+        <div className="rewards-table-card">
+          <table className="rewards-table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Period</th>
+                <th>Distributed</th>
+                <th>Your Amount</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const revealed = revealedRows.includes(row.asset.symbol) || row.status === "Claimed";
+                return (
+                  <tr key={`${row.asset.symbol}-${row.period}`}>
+                    <td><div className="asset-cell"><span className={`asset-token-icon ${marketDisplay(row.asset).tone}`}>{assetBadge(row.asset)}</span><strong>{row.asset.symbol}</strong></div></td>
+                    <td>{row.period}</td>
+                    <td>{row.distributed}</td>
+                    <td>
+                      <div className="hidden-value-cell">
+                        <span>{revealed ? row.amount : "🔒 Hidden"}</span>
+                        {row.status !== "Claimed" ? <button className="ghost-button" onClick={() => toggleReveal(row.asset.symbol)} type="button">Reveal</button> : null}
+                      </div>
+                    </td>
+                    <td><span className={`reward-status ${row.status.toLowerCase()}`}>{row.status}</span></td>
+                    <td><button disabled={row.status !== "Claimable"} type="button">{row.status === "Claimable" ? "Claim" : row.status}</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="distribution-chart-card">
+          <div>
+            <strong>Distribution History</strong>
+            <p className="muted">Monthly rewards remain encrypted until reveal.</p>
+          </div>
+          <ResponsiveContainer height={260} width="100%">
+            <BarChart data={chartData}>
+              <XAxis dataKey="month" stroke="#475569" tick={{ fill: "#94A3B8", fontSize: 11 }} />
+              <YAxis hide />
+              <Tooltip contentStyle={{ background: "#111318", border: "1px solid #2A2D3A", borderRadius: 8, color: "#F8FAFC" }} />
+              <Bar dataKey="value" fill="#8B5CF6" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
     </div>
   );
 }
 
 function GovernanceTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
+  const [voteProposal, setVoteProposal] = useState<GovernanceProposal | null>(null);
+  const [creating, setCreating] = useState(false);
+  const proposals = governanceProposals();
+
   return (
-    <div className="utility-layout">
-      <SelectedAssetPanel asset={selectedAsset} label="Voting asset" />
-      <UtilityBlock
-        title="Private voting"
-        text="Proposal votes use encrypted vote and encrypted weight payloads. The interface shows participation without exposing voting power."
-      />
-      <UtilityBlock
-        title="Protocol-wide proposals"
-        text="Affected asset lists can include one asset or all 61 wrappers for protocol-wide governance decisions."
-      />
+    <div className="governance-dashboard">
+      <section className="governance-hero">
+        <div>
+          <span className="muted">Active proposals</span>
+          <strong>{proposals.filter((item) => item.status === "Active").length}</strong>
+        </div>
+        <div>
+          <span className="muted">Your Voting Power</span>
+          <strong>Active 🔒</strong>
+        </div>
+        <button className="secondary" type="button">Delegate</button>
+        <button onClick={() => setCreating(true)} type="button">+ New Proposal</button>
+      </section>
+
+      <section className="proposal-grid">
+        {proposals.map((proposal) => (
+          <article className="proposal-card" key={proposal.title}>
+            <div className="proposal-topline">
+              <span className={`proposal-status ${proposal.status.toLowerCase()}`}>{proposal.status}</span>
+              <small>{proposal.deadline}</small>
+            </div>
+            <h3>{proposal.title}</h3>
+            <p>{proposal.excerpt}</p>
+            <div className="proposal-tags">
+              {proposal.assets.map((asset) => <span key={asset}>{asset}</span>)}
+            </div>
+            <div className="proposal-meta">
+              <span>{proposal.voters} voters</span>
+              <span>{proposal.participation}% participation</span>
+            </div>
+            {proposal.status === "Active" ? (
+              <button onClick={() => setVoteProposal(proposal)} type="button">Vote Now</button>
+            ) : (
+              <div className="results-card">
+                <div className="result-bars">
+                  <span style={{ width: `${proposal.forPct}%` }} />
+                  <em style={{ width: `${100 - proposal.forPct}%` }} />
+                </div>
+                <small>For {proposal.forPct}% | Against {100 - proposal.forPct}% · {proposal.execution}</small>
+              </div>
+            )}
+          </article>
+        ))}
+      </section>
+
+      {voteProposal ? <VotingModal proposal={voteProposal} onClose={() => setVoteProposal(null)} /> : null}
+      {creating ? <CreateProposalModal onClose={() => setCreating(false)} selectedAsset={selectedAsset} /> : null}
     </div>
   );
 }
 
 function CollateralTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
+  const [modal, setModal] = useState<"add" | "borrow" | "repay" | null>(null);
+  const [revealed, setRevealed] = useState<string[]>([]);
+  const collateral = collateralRows();
+  const loans = loanRows();
+
+  function reveal(key: string) {
+    setRevealed((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]));
+  }
+
   return (
-    <div className="utility-layout">
-      <SelectedAssetPanel asset={selectedAsset} label="Collateral asset" />
-      <UtilityBlock
-        title="Confidential collateral proof"
-        text="The Nox adapter returns a sufficiency proof for DeFi integrations without revealing the holder's exact balance."
-      />
-      <UtilityBlock
-        title="Borrow assets"
-        text="Preferred loan assets are cUSDC, cUSDT, cDAI, and cEURC. Collateral can mix any deployed confidential asset."
-      />
+    <div className="collateral-dashboard">
+      <section className="collateral-hero">
+        <div className="health-gauge" style={{ "--health": "78" } as CSSProperties}>
+          <strong>78</strong>
+          <span>Safe</span>
+        </div>
+        <div>
+          <span className="muted">Collateral Health</span>
+          <h3>Position is healthy</h3>
+          <p className="muted">No liquidation warning. Amounts remain encrypted.</p>
+        </div>
+        <div className="collateral-actions">
+          <button onClick={() => setModal("add")} type="button">+ Add Collateral</button>
+          <button className="secondary" onClick={() => setModal("borrow")} type="button">Borrow</button>
+          <button className="ghost-button" onClick={() => setModal("repay")} type="button">Repay</button>
+        </div>
+      </section>
+
+      <section className="collateral-summary-grid">
+        {["Total Collateral", "Total Borrowed", "Available to Borrow"].map((label) => (
+          <div className="collateral-summary-card" key={label}>
+            <span>{label}</span>
+            <strong>🔒 Hidden</strong>
+            <button className="ghost-button" type="button">Reveal</button>
+          </div>
+        ))}
+        <div className="collateral-summary-card">
+          <span>Net APY</span>
+          <strong>4.82%</strong>
+          <small>Private portfolio blend</small>
+        </div>
+      </section>
+
+      <section className="collateral-table-grid">
+        <CollateralTable title="Collateral Assets" rows={collateral} revealed={revealed} onReveal={reveal} />
+        <LoanTable rows={loans} revealed={revealed} onReveal={reveal} />
+      </section>
+
+      {modal ? <CollateralModal kind={modal} selectedAsset={selectedAsset} onClose={() => setModal(null)} /> : null}
+    </div>
+  );
+}
+
+function VotingModal({ onClose, proposal }: { onClose: () => void; proposal: GovernanceProposal }) {
+  const [choice, setChoice] = useState<"yes" | "no">("yes");
+  return (
+    <div className="asset-drawer-overlay" role="dialog" aria-modal="true" aria-label="Private voting modal">
+      <aside className="asset-drawer governance-modal">
+        <div className="drawer-header">
+          <div>
+            <span className="muted">Private vote</span>
+            <h3>{proposal.title}</h3>
+          </div>
+          <button className="ghost-button close-button" onClick={onClose} type="button">Close</button>
+        </div>
+        <p className="muted">{proposal.excerpt} Full proposal details are evaluated with encrypted voting weight.</p>
+        <div className="vote-toggle">
+          <button className={choice === "yes" ? "active yes" : undefined} onClick={() => setChoice("yes")} type="button">✅ Vote Yes</button>
+          <button className={choice === "no" ? "active no" : undefined} onClick={() => setChoice("no")} type="button">❌ Vote No</button>
+        </div>
+        <div className="privacy-notice">🔒 Your vote is private until reveal</div>
+        <div className="recipient-status ok">You are eligible to vote</div>
+        <div className="trade-steps">
+          <span className="active">TEE signing</span>
+          <span>Submit vote</span>
+          <span>Confirmed 🔒</span>
+        </div>
+        <button type="button">Confirm Vote</button>
+      </aside>
+    </div>
+  );
+}
+
+function CreateProposalModal({ onClose, selectedAsset }: { onClose: () => void; selectedAsset: DeployedAsset }) {
+  return (
+    <div className="asset-drawer-overlay" role="dialog" aria-modal="true" aria-label="Create governance proposal">
+      <aside className="asset-drawer governance-modal">
+        <div className="drawer-header">
+          <div>
+            <span className="muted">Token holders only</span>
+            <h3>New Proposal</h3>
+          </div>
+          <button className="ghost-button close-button" onClick={onClose} type="button">Close</button>
+        </div>
+        <label className="trade-field">Title<input placeholder="Proposal title" /></label>
+        <label className="trade-field">Description<input placeholder="Describe the protocol change" /></label>
+        <label className="trade-asset-select">
+          Affected assets
+          <select defaultValue={selectedAsset.symbol} multiple>
+            {deployedAssets.slice(0, 12).map((asset) => <option key={asset.symbol} value={asset.symbol}>{asset.symbol} · {asset.name}</option>)}
+          </select>
+        </label>
+        <label className="trade-field">Voting Duration<input placeholder="7 days" /></label>
+        <button type="button">Create Proposal</button>
+      </aside>
+    </div>
+  );
+}
+
+function CollateralTable({
+  onReveal,
+  revealed,
+  rows,
+  title,
+}: {
+  onReveal: (key: string) => void;
+  revealed: string[];
+  rows: ReturnType<typeof collateralRows>;
+  title: string;
+}) {
+  return (
+    <div className="collateral-table-card">
+      <div>
+        <strong>{title}</strong>
+        <p className="muted">Amounts and values stay encrypted until reveal.</p>
+      </div>
+      <table className="rewards-table">
+        <thead><tr><th>Asset</th><th>Amount</th><th>Value</th><th>Collateral Factor</th><th>Actions</th></tr></thead>
+        <tbody>
+          {rows.map((row) => {
+            const key = `collateral-${row.asset.symbol}`;
+            const isRevealed = revealed.includes(key);
+            return (
+              <tr key={row.asset.symbol}>
+                <td><div className="asset-cell"><span className={`asset-token-icon ${marketDisplay(row.asset).tone}`}>{assetBadge(row.asset)}</span><strong>{row.asset.symbol}</strong></div></td>
+                <td>{isRevealed ? row.amount : "🔒 Hidden"} <button className="ghost-button" onClick={() => onReveal(key)} type="button">Reveal</button></td>
+                <td>{isRevealed ? row.value : "🔒 Hidden"}</td>
+                <td>{row.factor}</td>
+                <td><div className="table-actions"><button type="button">Add More</button><button className="secondary" type="button">Remove</button></div></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function LoanTable({ onReveal, revealed, rows }: { onReveal: (key: string) => void; revealed: string[]; rows: ReturnType<typeof loanRows> }) {
+  return (
+    <div className="collateral-table-card">
+      <div>
+        <strong>Active Loans</strong>
+        <p className="muted">Borrowed balances use confidential handles.</p>
+      </div>
+      <table className="rewards-table">
+        <thead><tr><th>Borrowed Asset</th><th>Amount</th><th>Rate</th><th>Health</th><th>Actions</th></tr></thead>
+        <tbody>
+          {rows.map((row) => {
+            const key = `loan-${row.asset.symbol}`;
+            const isRevealed = revealed.includes(key);
+            return (
+              <tr key={row.asset.symbol}>
+                <td><div className="asset-cell"><span className={`asset-token-icon ${marketDisplay(row.asset).tone}`}>{assetBadge(row.asset)}</span><strong>{row.asset.symbol}</strong></div></td>
+                <td>{isRevealed ? row.amount : "🔒 Hidden"} <button className="ghost-button" onClick={() => onReveal(key)} type="button">Reveal</button></td>
+                <td>{row.rate}</td>
+                <td><span className="reward-status claimable">{row.health}</span></td>
+                <td><div className="table-actions"><button type="button">Repay</button><button className="secondary" type="button">Repay All</button></div></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CollateralModal({ kind, onClose, selectedAsset }: { kind: "add" | "borrow" | "repay"; onClose: () => void; selectedAsset: DeployedAsset }) {
+  return (
+    <div className="asset-drawer-overlay" role="dialog" aria-modal="true" aria-label={`${kind} collateral modal`}>
+      <aside className="asset-drawer governance-modal">
+        <div className="drawer-header">
+          <div>
+            <span className="muted">Confidential collateral</span>
+            <h3>{kind === "add" ? "Add Collateral" : kind === "borrow" ? "Borrow" : "Repay"}</h3>
+          </div>
+          <button className="ghost-button close-button" onClick={onClose} type="button">Close</button>
+        </div>
+        {kind === "add" ? <TradeAssetSelect label="Collateral assets" selectedSymbol={selectedAsset.symbol} onChange={() => undefined} /> : null}
+        {kind === "borrow" ? (
+          <>
+            <TradeAssetSelect label="Loan asset" selectedSymbol="cUSDC" onChange={() => undefined} holdingsOnly />
+            <label className="trade-field">Encrypted amount<input placeholder="🔒 0.00" /></label>
+            <div className="privacy-notice">Collateral proof step: TEE verifies sufficiency without exposing balance.</div>
+            <div className="recipient-status ok">Health preview after borrow: Safe</div>
+          </>
+        ) : null}
+        {kind === "repay" ? <label className="trade-field">Repay amount<input placeholder="🔒 0.00" /></label> : null}
+        <button type="button">{kind === "add" ? "Add Collateral" : kind === "borrow" ? "Borrow Privately" : "Repay Loan"}</button>
+      </aside>
     </div>
   );
 }
 
 function AiToolsTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
+  const [auditSymbol, setAuditSymbol] = useState(selectedAsset.symbol);
+  const [chatInput, setChatInput] = useState("");
+  const [insightSymbol, setInsightSymbol] = useState(selectedAsset.symbol);
+  const auditAsset = deployedAssets.find((asset) => asset.symbol === auditSymbol) ?? selectedAsset;
+  const insightAsset = deployedAssets.find((asset) => asset.symbol === insightSymbol) ?? selectedAsset;
+  const insightMarket = marketDisplay(insightAsset);
+  const metrics = insightMetrics(insightAsset);
+
   return (
-    <div className="utility-layout">
-      <SelectedAssetPanel asset={selectedAsset} label="AI context asset" />
-      <UtilityBlock
-        title="Smart Contract Auditor"
-        text="The auditor can inspect the deployed base token or confidential wrapper address for any selected asset."
-      />
-      <UtilityBlock
-        title="On-chain Insights"
-        text="Insights should stay aggregate-only: supply, holder count, modules, and transfer activity without individual confidential balances."
-      />
+    <div className="ai-tools-dashboard">
+      <section className="ai-tools-header">
+        <div>
+          <span className="chaingpt-badge">ChainGPT</span>
+          <h2>AI Tools — Powered by ChainGPT</h2>
+          <p>Access control: Premium features require token holdings.</p>
+        </div>
+        <div className="ai-header-badges">
+          <NetworkBadge />
+          <TierBadge tier="Tier 2" />
+          <KYCBadge status={selectedAsset.requiresKYC ? "Required" : "Open"} />
+        </div>
+      </section>
+
+      <section className="ai-tool-grid">
+        <article className="ai-tool-panel auditor-panel">
+          <div className="ai-panel-header">
+            <strong>Contract Auditor 🔍</strong>
+            <span>Powered by ChainGPT</span>
+          </div>
+          <AssetSelector label="Asset" selectedSymbol={auditAsset.symbol} onChange={setAuditSymbol} />
+          <div className="ai-address-box">
+            <span>Wrapper contract</span>
+            <AddressDisplay address={auditAsset.wrapperAddress} />
+          </div>
+          <button type="button">Run Audit</button>
+          <div className="audit-results">
+            <div className="risk-score low">Risk score: LOW</div>
+            <ul>
+              <li><span className="severity low">LOW</span> Events preserve encrypted transfer amounts</li>
+              <li><span className="severity medium">MED</span> Confirm oracle freshness before production settlement</li>
+              <li><span className="severity low">LOW</span> Access checks rely on shared identity registry</li>
+            </ul>
+            <div className="recommendations">
+              <strong>Recommendations</strong>
+              <p>Keep confidential amount handles out of UI logs and verify wrapper addresses before demo transactions.</p>
+            </div>
+          </div>
+        </article>
+
+        <article className="ai-tool-panel assistant-panel">
+          <div className="ai-panel-header">
+            <strong>AI Assistant 🤖</strong>
+            <span>Powered by ChainGPT Web3 LLM</span>
+          </div>
+          <div className="chat-window">
+            <div className="chat-bubble ai">Ask me about the 61 confidential assets, private transfers, Nox, dividends, and collateral.</div>
+            <div className="chat-bubble user">How do confidential transfers work?</div>
+            <div className="chat-bubble ai">The dApp creates encrypted amount handles, then the wrapper submits metadata without plaintext amounts.</div>
+            <div className="typing-dots"><span /><span /><span /></div>
+          </div>
+          <div className="suggested-questions">
+            {["What is cAAPL?", "How do confidential transfers work?", "Explain Nox Protocol", "What is ERC-7984?", "How do I earn dividends?"].map((question) => (
+              <button className="secondary" key={question} onClick={() => setChatInput(question)} type="button">{question}</button>
+            ))}
+          </div>
+          <div className="chat-input-row">
+            <input onChange={(event) => setChatInput(event.target.value)} placeholder="Ask about any confidential asset" value={chatInput} />
+            <button type="button">Send</button>
+          </div>
+        </article>
+
+        <article className="ai-tool-panel insights-panel">
+          <div className="ai-panel-header">
+            <strong>Market Insights 📊</strong>
+            <ConfidentialBadge label="Aggregate only" />
+          </div>
+          <AssetSelector label="Asset" selectedSymbol={insightAsset.symbol} onChange={setInsightSymbol} />
+          <PriceDisplay change={insightMarket.change} price={insightMarket.price} symbol={insightAsset.symbol} />
+          <div className="insight-metrics-grid">
+            {metrics.map((metric) => (
+              <div key={metric.label}>
+                <span>{metric.label}</span>
+                <strong>{metric.value}</strong>
+              </div>
+            ))}
+          </div>
+          <div className="privacy-notice">Individual balances are never exposed 🔒</div>
+          <ResponsiveContainer height={190} width="100%">
+            <BarChart data={metrics}>
+              <XAxis dataKey="short" stroke="#475569" tick={{ fill: "#94A3B8", fontSize: 11 }} />
+              <YAxis hide />
+              <Tooltip contentStyle={{ background: "#111318", border: "1px solid #2A2D3A", borderRadius: 8, color: "#F8FAFC" }} />
+              <Bar dataKey="score" fill="#10B981" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </article>
+      </section>
     </div>
   );
 }
@@ -1204,6 +1837,126 @@ function portfolioActivity() {
     { hash: fallbackHash, label: "Sent cBTC confidentially", time: "1d ago", tone: "activity-transfer" },
     { hash: fallbackHash, label: "Received cTSLA dividend", time: "3d ago", tone: "activity-dividend" },
     { hash: fallbackHash, label: "Locked cGOLD as collateral", time: "5d ago", tone: "activity-collateral" },
+  ];
+}
+
+function tradeChartData(asset: DeployedAsset, range: "1H" | "1D" | "7D" | "30D") {
+  const market = marketDisplay(asset);
+  const points = range === "1H" ? 12 : range === "1D" ? 24 : range === "7D" ? 14 : 30;
+  return Array.from({ length: points }, (_, index) => {
+    const wave = Math.sin((index + market.price) * 0.58) * market.price * 0.012;
+    const drift = market.price * (market.change / 100) * (index / Math.max(points - 1, 1));
+    return {
+      label: `${index + 1}`,
+      price: market.price + wave + drift,
+      volume: 1200 + ((index * 173 + asset.symbol.length * 91) % 3600),
+    };
+  });
+}
+
+function tradeHistory() {
+  const fallbackHash = "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`;
+  return [
+    { action: "Wrapped cAAPL", hash: fallbackHash, status: "Confirmed", time: "12m ago" },
+    { action: "Sent cBTC confidentially", hash: fallbackHash, status: "Pending", time: "38m ago" },
+    { action: "Unwrapped cUSDC", hash: fallbackHash, status: "Confirmed", time: "2h ago" },
+    { action: "Private swap cETH → cUSDC", hash: fallbackHash, status: "Failed", time: "1d ago" },
+  ];
+}
+
+function dividendRows(tab: "stocks" | "crypto" | "stablecoins" | "commodities") {
+  const symbolsByTab = {
+    commodities: ["cGOLD", "cOIL", "cSILVER"],
+    crypto: ["cBTC", "cETH", "cSOL"],
+    stablecoins: ["cUSDC", "cUSDT", "cDAI"],
+    stocks: ["cAAPL", "cTSLA", "cNVDA", "cASML"],
+  };
+  return symbolsByTab[tab].map((symbol, index) => {
+    const asset = deployedAssets.find((item) => item.symbol === symbol) ?? deployedAssets[0];
+    return {
+      amount: tab === "commodities" ? "N/A" : `${(3.4 + index * 1.8).toFixed(2)} ${asset.symbol}`,
+      asset,
+      distributed: tab === "commodities" ? "Disabled" : `🔒 ${formatMarketPrice(12000 + index * 4300)}`,
+      period: index % 2 === 0 ? "Q1 2026" : "Mar 2026",
+      status: tab === "commodities" ? "Pending" : index === 1 ? "Claimed" : index === 2 ? "Pending" : "Claimable",
+    };
+  });
+}
+
+function monthlyDistributionData() {
+  return ["Nov", "Dec", "Jan", "Feb", "Mar", "Apr"].map((month, index) => ({ month, value: 8000 + index * 2200 + (index % 2) * 1400 }));
+}
+
+function governanceProposals(): GovernanceProposal[] {
+  return [
+    {
+      assets: ["Protocol-wide", "cAAPL", "cTSLA"],
+      deadline: "Ends in 2d 04h",
+      execution: "Queued",
+      excerpt: "Adjust confidential collateral thresholds for major equity wrappers after oracle volatility review.",
+      forPct: 68,
+      participation: 42,
+      status: "Active",
+      title: "Update equity collateral factors",
+      voters: 34,
+    },
+    {
+      assets: ["cBTC", "cETH"],
+      deadline: "Closed Apr 12",
+      execution: "Executed",
+      excerpt: "Enable expanded confidential rewards for liquid crypto asset wrappers.",
+      forPct: 74,
+      participation: 51,
+      status: "Passed",
+      title: "Expand crypto rewards program",
+      voters: 58,
+    },
+    {
+      assets: ["cGOLD", "cUSDC"],
+      deadline: "Closed Apr 02",
+      execution: "Not executed",
+      excerpt: "Route commodity settlement discounts through confidential stablecoin pairs.",
+      forPct: 39,
+      participation: 28,
+      status: "Failed",
+      title: "Commodity settlement discount",
+      voters: 21,
+    },
+  ];
+}
+
+function collateralRows() {
+  return ["cAAPL", "cBTC", "cGOLD", "cUSDC"].map((symbol, index) => {
+    const asset = deployedAssets.find((item) => item.symbol === symbol) ?? deployedAssets[0];
+    return {
+      amount: `${(12.5 + index * 4.2).toFixed(2)} ${asset.symbol}`,
+      asset,
+      factor: `${70 - index * 5}%`,
+      value: formatMarketPrice((12.5 + index * 4.2) * marketDisplay(asset).price),
+    };
+  });
+}
+
+function loanRows() {
+  return ["cUSDC", "cDAI", "cEURC"].map((symbol, index) => {
+    const asset = deployedAssets.find((item) => item.symbol === symbol) ?? deployedAssets[0];
+    return {
+      amount: `${(1800 + index * 700).toLocaleString()} ${asset.symbol}`,
+      asset,
+      health: index === 2 ? "Warning" : "Safe",
+      rate: `${(3.2 + index * 0.8).toFixed(2)}%`,
+    };
+  });
+}
+
+function insightMetrics(asset: DeployedAsset) {
+  const index = deployedAssets.findIndex((item) => item.symbol === asset.symbol);
+  return [
+    { label: "Total Supply", score: 82, short: "Supply", value: "1,000,000" },
+    { label: "Holder Count", score: 48 + (index % 30), short: "Holders", value: `${240 + index * 7}` },
+    { label: "Transfer Volume (24h)", score: 64, short: "Volume", value: "🔒 Aggregate" },
+    { label: "Wrap/Unwrap ratio", score: 71, short: "Ratio", value: "3.4 : 1" },
+    { label: "Last activity timestamp", score: 39, short: "Recent", value: "14m ago" },
   ];
 }
 
