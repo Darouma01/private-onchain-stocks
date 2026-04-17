@@ -171,6 +171,7 @@ function assetBadge(asset: DeployedAsset) {
 }
 
 function formatPrice(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "Unavailable";
   return new Intl.NumberFormat("en-US", {
     currency: "USD",
     maximumFractionDigits: value >= 100 ? 2 : 4,

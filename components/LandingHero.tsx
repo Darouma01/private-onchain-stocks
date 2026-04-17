@@ -1,13 +1,21 @@
-import { deployedAssets } from "@/lib/deployed-assets";
+"use client";
 
-const heroTicker = deployedAssets.slice(0, 18).map((asset, index) => ({
-  change: index % 4 === 0 ? "▼0.8%" : "▲2.4%",
-  direction: index % 4 === 0 ? "down" : "up",
-  price: asset.symbol === "cBTC" ? "$67,420" : asset.symbol === "cETH" ? "$3,520" : asset.symbol === "cUSDC" ? "$1.00" : `$${(128 + index * 7.4).toFixed(2)}`,
-  symbol: asset.symbol,
-}));
+import { deployedAssets } from "@/lib/deployed-assets";
+import { usePrices } from "@/lib/prices/usePrices";
 
 export function LandingHero() {
+  const { prices } = usePrices();
+  const heroTicker = deployedAssets.slice(0, 18).map((asset) => {
+    const quote = prices[asset.symbol];
+    const direction = (quote?.change24h ?? 0) >= 0 ? "up" : "down";
+    return {
+      change: quote ? `${direction === "up" ? "▲" : "▼"}${Math.abs(quote.change24h).toFixed(2)}%` : "⚠ unavailable",
+      direction,
+      price: quote ? formatHeroPrice(quote.price) : "Unavailable",
+      symbol: asset.symbol,
+    };
+  });
+
   return (
     <section className="landing-hero">
       <div className="hero-grid-bg" aria-hidden="true" />
@@ -60,4 +68,13 @@ export function LandingHero() {
       </div>
     </section>
   );
+}
+
+function formatHeroPrice(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: value >= 100 ? 2 : 4,
+    minimumFractionDigits: value >= 100 ? 2 : 2,
+    style: "currency",
+  }).format(value);
 }

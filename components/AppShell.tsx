@@ -1,5 +1,8 @@
+"use client";
+
 import { ReactNode } from "react";
 import { deployedAssets } from "@/lib/deployed-assets";
+import { usePrices } from "@/lib/prices/usePrices";
 import { uiLinks } from "@/lib/ui-links";
 
 const navItems = [
@@ -13,14 +16,9 @@ const navItems = [
   ["⚙️", "Settings"],
 ] as const;
 
-const tickerAssets = deployedAssets.map((asset, index) => {
-  const direction = index % 4 === 0 ? "down" : "up";
-  const price = pseudoPrice(asset.symbol, index);
-  const change = direction === "up" ? `▲${((index % 7) + 0.4).toFixed(1)}%` : `▼${((index % 5) + 0.3).toFixed(1)}%`;
-  return { ...asset, change, direction, price };
-});
-
 export function AppShell({ children }: { children: ReactNode }) {
+  const prices = usePrices();
+
   return (
     <div className="terminal-shell">
       <header className="topbar">
@@ -71,32 +69,39 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="ticker-bar" aria-label="Market ticker">
         <div className="ticker-track">
-          <TickerItems />
-          <TickerItems />
+          <TickerItems prices={prices.prices} />
+          <TickerItems prices={prices.prices} />
         </div>
       </div>
     </div>
   );
 }
 
-function TickerItems() {
+function TickerItems({ prices }: { prices: ReturnType<typeof usePrices>["prices"] }) {
   return (
     <div className="ticker-group">
-      {tickerAssets.map((asset) => (
-        <span className="ticker-item" key={`${asset.symbol}-${asset.direction}`}>
+      {deployedAssets.map((asset) => {
+        const quote = prices[asset.symbol];
+        const direction = (quote?.change24h ?? 0) >= 0 ? "up" : "down";
+        return (
+        <span className="ticker-item" key={`${asset.symbol}-${direction}`}>
           <strong>{asset.symbol}</strong>
-          <span>${asset.price}</span>
-          <span className={asset.direction === "up" ? "ticker-up" : "ticker-down"}>{asset.change}</span>
+          <span>{quote ? formatTickerPrice(quote.price) : "Unavailable"}</span>
+          <span className={direction === "up" ? "ticker-up" : "ticker-down"}>
+            {quote ? `${direction === "up" ? "▲" : "▼"}${Math.abs(quote.change24h).toFixed(2)}%` : "⚠"}
+          </span>
         </span>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-function pseudoPrice(symbol: string, index: number) {
-  if (symbol === "cBTC") return "67,420";
-  if (symbol === "cETH") return "3,240";
-  if (symbol === "cGOLD" || symbol === "cXAUT") return "2,348";
-  if (symbol.includes("USDC") || symbol.includes("USDT") || symbol.includes("DAI")) return "1.00";
-  return (94 + index * 7.13).toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+function formatTickerPrice(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: value >= 100 ? 2 : 4,
+    minimumFractionDigits: value >= 100 ? 2 : 2,
+    style: "currency",
+  }).format(value);
 }

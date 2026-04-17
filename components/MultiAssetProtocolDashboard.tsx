@@ -25,6 +25,7 @@ import {
 } from "@/lib/contracts";
 import { erc20Abi } from "@/lib/onchain";
 import { AddressDisplay, AssetSelector, ConfidentialBadge, EmptyState, KYCBadge, NetworkBadge, PriceDisplay, SkeletonRows, TierBadge } from "@/components/SharedUi";
+import { getCachedAssetPrice, usePrices } from "@/lib/prices/usePrices";
 
 type Tab = "Markets" | "Portfolio" | "Trade" | "Dividends" | "Governance" | "Collateral" | "AI Tools";
 type MarketSortKey = "symbol" | "name" | "category" | "price" | "change" | "kyc";
@@ -71,6 +72,7 @@ const categoryPills: Array<{ value: AssetCategory | "ALL"; label: string; icon: 
 ];
 
 export function MultiAssetProtocolDashboard({ initialTab = "Markets" }: { initialTab?: Tab } = {}) {
+  const priceState = usePrices();
   const [tab, setTab] = useState<Tab>(initialTab);
   const [category, setCategory] = useState<AssetCategory | "ALL">("ALL");
   const [query, setQuery] = useState("");
@@ -128,6 +130,10 @@ export function MultiAssetProtocolDashboard({ initialTab = "Markets" }: { initia
           <p className="muted">
             Every listed market has a base ERC-3643-style asset and an ERC-7984-style confidential wrapper on Arbitrum
             Sepolia.
+          </p>
+          <p className="muted">
+            Prices: {priceState.isLoading ? "Loading live feeds..." : priceState.lastRefresh ? `Last updated ${formatRefreshAge(priceState.lastRefresh)}` : "Not loaded"}
+            {priceState.error ? " · ⚠ Price data unavailable, showing last known values only" : ""}
           </p>
         </div>
         <span className="status-dot good">{assetDeployment.selectedSymbols.length} live assets</span>
@@ -2172,12 +2178,10 @@ function tradeChartData(asset: DeployedAsset, range: "1H" | "1D" | "7D" | "30D")
   const market = marketDisplay(asset);
   const points = range === "1H" ? 12 : range === "1D" ? 24 : range === "7D" ? 14 : 30;
   return Array.from({ length: points }, (_, index) => {
-    const wave = Math.sin((index + market.price) * 0.58) * market.price * 0.012;
-    const drift = market.price * (market.change / 100) * (index / Math.max(points - 1, 1));
     return {
       label: `${index + 1}`,
-      price: market.price + wave + drift,
-      volume: 1200 + ((index * 173 + asset.symbol.length * 91) % 3600),
+      price: market.price,
+      volume: 0,
     };
   });
 }
@@ -2289,27 +2293,10 @@ function insightMetrics(asset: DeployedAsset) {
 }
 
 function marketDisplay(asset: DeployedAsset) {
-  const index = deployedAssets.findIndex((item) => item.symbol === asset.symbol);
-  const basePrice =
-    asset.symbol === "cBTC"
-      ? 67420
-      : asset.symbol === "cETH"
-        ? 3520
-        : asset.symbol === "cGOLD" || asset.symbol === "cXAUT"
-          ? 2348
-          : asset.category === AssetCategory.STABLECOIN
-            ? 1
-            : asset.category === AssetCategory.CRYPTO
-              ? 82 + index * 7.2
-              : asset.category === AssetCategory.COMMODITY
-                ? 42 + index * 3.1
-                : 118 + index * 5.35;
-  const change = Number((((index * 1.37) % 12) - 4.6).toFixed(2));
-  const sparkline = Array.from({ length: 10 }, (_, point) => {
-    const wave = Math.sin((point + index) * 0.82) * (basePrice * 0.015);
-    const drift = (change / 100) * basePrice * (point / 9);
-    return basePrice + wave + drift;
-  });
+  const quote = getCachedAssetPrice(asset.symbol);
+  const basePrice = quote?.price ?? 0;
+  const change = quote?.change24h ?? 0;
+  const sparkline = Array.from({ length: 10 }, () => basePrice);
   const tone =
     asset.category === AssetCategory.STOCK_US
       ? "us"
@@ -2321,16 +2308,23 @@ function marketDisplay(asset: DeployedAsset) {
             ? "commodity"
             : "stable";
 
-  return { change, price: basePrice, sparkline, tone };
+  return { available: Boolean(quote), change, price: basePrice, sparkline, tone };
 }
 
 function formatMarketPrice(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "Unavailable";
   return new Intl.NumberFormat("en-US", {
     currency: "USD",
     maximumFractionDigits: value >= 100 ? 2 : 4,
     minimumFractionDigits: value >= 100 ? 2 : 2,
     style: "currency",
   }).format(value);
+}
+
+function formatRefreshAge(lastRefresh: Date) {
+  const seconds = Math.max(0, Math.round((Date.now() - lastRefresh.getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  return `${Math.floor(seconds / 60)}m ago`;
 }
 
 function assetInitials(asset: DeployedAsset) {
