@@ -5,14 +5,12 @@ import { KycStatusCard } from "@/components/KycStatusCard";
 import { MultiAssetProtocolDashboard } from "@/components/MultiAssetProtocolDashboard";
 import { OnChainDataInsightsPanel } from "@/components/OnChainDataInsightsPanel";
 import { SmartContractAuditorWidget } from "@/components/SmartContractAuditorWidget";
-import { TestnetBanner } from "@/components/TestnetBanner";
 import { WalletPanel } from "@/components/WalletPanel";
 import { Web3LLMAssistant } from "@/components/Web3LLMAssistant";
 
 export default function HomePage() {
   return (
     <main className="page">
-      <TestnetBanner />
       <header className="header">
         <h1>Private Onchain Stocks</h1>
         <p>
@@ -21,14 +19,16 @@ export default function HomePage() {
         </p>
       </header>
 
-      <div className="top-grid">
+      <div className="top-grid" id="wallet">
         <WalletPanel />
         <KycStatusCard />
       </div>
 
-      <MultiAssetProtocolDashboard />
+      <div id="markets">
+        <MultiAssetProtocolDashboard />
+      </div>
 
-      <div className="primary-grid">
+      <div className="primary-grid" id="portfolio">
         <ConfidentialPortfolio />
         <ConfidentialTokenUtilityPanel />
       </div>
