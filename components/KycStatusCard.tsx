@@ -3,12 +3,14 @@
 import { useAccount, useReadContract } from "wagmi";
 import { addressUrl, identityRegistryAbi } from "@/lib/contracts";
 import { useSelectedAsset } from "@/hooks/useSelectedAsset";
+import { getUtilityText } from "@/lib/utilities/getUtilityText";
 
 const identityRegistryAddress = "0xb2afb921aa8ce9f53f678782840216661f0d849d" as const;
 
 export function KycStatusCard() {
   const { address, isConnected } = useAccount();
   const { selectedAsset } = useSelectedAsset();
+  const text = getUtilityText(selectedAsset);
   const { data, isLoading, error, refetch } = useReadContract({
     address: identityRegistryAddress,
     abi: identityRegistryAbi,
@@ -18,7 +20,7 @@ export function KycStatusCard() {
   });
 
   let label = "Not connected";
-  let description = `Connect your wallet to check whether it is approved for ${selectedAsset.symbol}.`;
+  let description = text.kycPrompt;
   let className = "neutral";
 
   if (isConnected && isLoading) {

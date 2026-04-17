@@ -26,6 +26,7 @@ import {
 import { erc20Abi } from "@/lib/onchain";
 import { AddressDisplay, AssetSelector, ConfidentialBadge, EmptyState, KYCBadge, NetworkBadge, PriceDisplay, SkeletonRows, TierBadge } from "@/components/SharedUi";
 import { getCachedAssetPrice, usePrices } from "@/lib/prices/usePrices";
+import { getUtilityText } from "@/lib/utilities/getUtilityText";
 
 type Tab = "Markets" | "Portfolio" | "Trade" | "Dividends" | "Governance" | "Collateral" | "AI Tools";
 type MarketSortKey = "symbol" | "name" | "category" | "price" | "change" | "kyc";
@@ -76,9 +77,8 @@ export function MultiAssetProtocolDashboard({ initialTab = "Markets" }: { initia
   const [tab, setTab] = useState<Tab>(initialTab);
   const [category, setCategory] = useState<AssetCategory | "ALL">("ALL");
   const [query, setQuery] = useState("");
-  const [selectedSymbol, setSelectedSymbol] = useState("cAAPL");
+  const { selectedAsset, selectedSymbol, setSelectedSymbol } = useSelectedAsset();
 
-  const selectedAsset = deployedAssets.find((asset) => asset.symbol === selectedSymbol) ?? deployedAssets[0];
   const filteredAssets = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return deployedAssets.filter((asset) => {
@@ -1096,6 +1096,7 @@ function RecentTradeHistory() {
 
 function AssetActionPanel({ asset }: { asset: DeployedAsset }) {
   const { address, isConnected } = useAccount();
+  const text = getUtilityText(asset);
   const [wrapAmount, setWrapAmount] = useState("10");
   const [transferAmount, setTransferAmount] = useState("1");
   const [recipient, setRecipient] = useState("");
@@ -1223,8 +1224,8 @@ function AssetActionPanel({ asset }: { asset: DeployedAsset }) {
   if (!isConnected) {
     return (
       <div className="action-panel">
-        <strong>Connect wallet to use {asset.symbol}</strong>
-        <p className="muted">After connecting, you can approve, wrap, and privately transfer this deployed asset.</p>
+        <strong>{text.connectPrompt}</strong>
+        <p className="muted">{text.connectDescription}</p>
       </div>
     );
   }

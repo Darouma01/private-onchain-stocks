@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useConfidentialAccess } from "@/components/useConfidentialAccess";
 import { useSelectedAsset } from "@/hooks/useSelectedAsset";
+import { getUtilityText } from "@/lib/utilities/getUtilityText";
 
 type InvestorDashboardGateProps = {
   featureName: string;
@@ -13,12 +14,13 @@ type InvestorDashboardGateProps = {
 export function InvestorDashboardGate({ featureName, utility, children }: InvestorDashboardGateProps) {
   const { isConnected, encryptedLoading, hasHolderAccess, encryptedError } = useConfidentialAccess();
   const { selectedAsset } = useSelectedAsset();
+  const text = getUtilityText(selectedAsset);
 
   if (hasHolderAccess) {
     return <>{children}</>;
   }
 
-  let message = lockedMessage(featureName, selectedAsset.symbol, selectedAsset.name);
+  let message = lockedMessage(featureName, text);
   if (isConnected && encryptedLoading) {
     message = "Checking your confidential stock token handle before unlocking this feature.";
   } else if (isConnected) {
@@ -40,15 +42,15 @@ export function InvestorDashboardGate({ featureName, utility, children }: Invest
   );
 }
 
-function lockedMessage(featureName: string, symbol: string, name: string) {
+function lockedMessage(featureName: string, text: ReturnType<typeof getUtilityText>) {
   if (featureName.includes("On-Chain Data")) {
-    return `Connect a verified wallet and wrap ${symbol} into confidential ${symbol} to unlock ${symbol} insights.`;
+    return text.insightsLocked;
   }
   if (featureName.includes("Auditor")) {
-    return `Connect a verified wallet and wrap ${symbol} to unlock the ${symbol} contract auditor.`;
+    return text.auditorLocked;
   }
   if (featureName.includes("LLM") || featureName.includes("Assistant")) {
-    return `Connect a verified wallet and wrap ${symbol} to unlock the AI assistant for ${name}.`;
+    return text.assistantLocked;
   }
-  return `Connect a verified wallet and wrap ${symbol} into confidential ${symbol} to unlock this holder feature.`;
+  return text.insightsLocked;
 }
