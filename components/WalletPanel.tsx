@@ -3,19 +3,21 @@
 import { useMemo } from "react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { appChain, chainId, shortAddress } from "@/lib/contracts";
+import { useSelectedAsset } from "@/hooks/useSelectedAsset";
 
 export function WalletPanel() {
   const { address, chainId: connectedChainId, isConnected } = useAccount();
   const { connect, connectors, isPending, error } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: switching } = useSwitchChain();
+  const { selectedAsset } = useSelectedAsset();
   const connector = connectors[0];
   const wrongNetwork = isConnected && connectedChainId !== chainId;
   const status = useMemo(() => {
-    if (!isConnected) return "Connect your wallet to check KYC and manage cAAPL.";
+    if (!isConnected) return `Connect your wallet to check KYC and manage ${selectedAsset.symbol}.`;
     if (wrongNetwork) return "Wrong network. Switch to Arbitrum Sepolia to continue.";
     return "Wallet connected on Arbitrum Sepolia.";
-  }, [isConnected, wrongNetwork]);
+  }, [isConnected, selectedAsset.symbol, wrongNetwork]);
 
   return (
     <section className="section status-section">

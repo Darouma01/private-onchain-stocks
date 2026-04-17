@@ -2,11 +2,13 @@
 
 import { useAccount, useReadContract } from "wagmi";
 import { addressUrl, identityRegistryAbi } from "@/lib/contracts";
+import { useSelectedAsset } from "@/hooks/useSelectedAsset";
 
 const identityRegistryAddress = "0xb2afb921aa8ce9f53f678782840216661f0d849d" as const;
 
 export function KycStatusCard() {
   const { address, isConnected } = useAccount();
+  const { selectedAsset } = useSelectedAsset();
   const { data, isLoading, error, refetch } = useReadContract({
     address: identityRegistryAddress,
     abi: identityRegistryAbi,
@@ -16,7 +18,7 @@ export function KycStatusCard() {
   });
 
   let label = "Not connected";
-  let description = "Connect your wallet to check whether it is approved for cAAPL.";
+  let description = `Connect your wallet to check whether it is approved for ${selectedAsset.symbol}.`;
   let className = "neutral";
 
   if (isConnected && isLoading) {
@@ -24,7 +26,7 @@ export function KycStatusCard() {
     description = "Reading your KYC status from the ERC-3643 identity registry.";
   } else if (data) {
     label = "Verified";
-    description = "This wallet can hold cAAPL, wrap ccAAPL, and receive private stock payments.";
+    description = `This wallet can hold ${selectedAsset.symbol}, wrap it confidentially, and receive private payments.`;
     className = "good";
   } else if (isConnected) {
     label = "Not verified";

@@ -6,7 +6,7 @@ import { formatEther, parseEther } from "viem";
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { AssetCategory } from "@/deploy/assets.config";
 import { useAnyConfidentialBalance, useSelectedConfidentialBalance } from "@/components/useAnyConfidentialBalance";
-import { useSelectedAsset } from "@/components/useSelectedAsset";
+import { useSelectedAsset } from "@/hooks/useSelectedAsset";
 import {
   assetDeployment,
   categoryLabels,
@@ -443,7 +443,7 @@ function AssetTableRow({
         <div className="table-actions">
           <button onClick={onSelect} type="button">Wrap</button>
           <button className="secondary" onClick={onSelect} type="button">Trade</button>
-          <a className="ghost-button" href={`/ai-tools?asset=${encodeURIComponent(asset.symbol)}`}>Use {asset.symbol}</a>
+          <a className="ghost-button" href={`/?asset=${encodeURIComponent(asset.symbol)}#portfolio-utilities`}>Use {asset.symbol}</a>
           <button className="ghost-button" onClick={onDetails} type="button">Details</button>
         </div>
       </td>

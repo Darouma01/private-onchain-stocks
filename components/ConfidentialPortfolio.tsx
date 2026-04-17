@@ -9,13 +9,14 @@ import {
   useWriteContract,
 } from "wagmi";
 import {
-  caaplAbi,
-  caaplAddress,
-  confidentialCAAPLAbi,
-  confidentialCAAPLAddress,
+  baseAssetAbi,
+  confidentialWrapperAbi,
   shortAddress,
   txUrl,
 } from "@/lib/contracts";
+import { AssetCategory } from "@/deploy/assets.config";
+import { useSelectedAsset } from "@/hooks/useSelectedAsset";
+import { AssetContextPill } from "@/components/AssetContextPill";
 
 type ActionState = {
   label: string;
@@ -25,6 +26,7 @@ type ActionState = {
 
 export function ConfidentialPortfolio() {
   const { address, isConnected } = useAccount();
+  const { selectedAsset, setSelectedAsset } = useSelectedAsset();
   const [wrapAmount, setWrapAmount] = useState("10");
   const [transferAmount, setTransferAmount] = useState("1");
   const [recipient, setRecipient] = useState("");
@@ -33,32 +35,32 @@ export function ConfidentialPortfolio() {
   const { writeContractAsync } = useWriteContract();
 
   const { data: standardBalance, refetch: refetchStandard } = useReadContract({
-    address: caaplAddress,
-    abi: caaplAbi,
+    address: selectedAsset.baseAddress,
+    abi: baseAssetAbi,
     functionName: "balanceOf",
     args: address ? [address] : undefined,
     query: { enabled: Boolean(address) },
   });
 
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
-    address: caaplAddress,
-    abi: caaplAbi,
+    address: selectedAsset.baseAddress,
+    abi: baseAssetAbi,
     functionName: "allowance",
-    args: address ? [address, confidentialCAAPLAddress] : undefined,
+    args: address ? [address, selectedAsset.wrapperAddress] : undefined,
     query: { enabled: Boolean(address) },
   });
 
   const { data: encryptedBalance, refetch: refetchEncrypted } = useReadContract({
-    address: confidentialCAAPLAddress,
-    abi: confidentialCAAPLAbi,
+    address: selectedAsset.wrapperAddress,
+    abi: confidentialWrapperAbi,
     functionName: "getEncryptedBalance",
     args: address ? [address] : undefined,
     query: { enabled: Boolean(address) },
   });
 
   const { data: revealedBalance, isLoading: revealLoading, error: revealError, refetch: revealBalance } = useReadContract({
-    address: confidentialCAAPLAddress,
-    abi: confidentialCAAPLAbi,
+    address: selectedAsset.wrapperAddress,
+    abi: confidentialWrapperAbi,
     functionName: "decryptBalance",
     args: address ? [address, "0x"] : undefined,
     account: address,
@@ -70,7 +72,7 @@ export function ConfidentialPortfolio() {
     query: { enabled: Boolean(action?.hash) },
   });
 
-  const standardBalanceLabel = standardBalance === undefined ? "..." : `${formatEther(standardBalance)} cAAPL`;
+  const standardBalanceLabel = standardBalance === undefined ? "..." : `${formatEther(standardBalance)} ${selectedAsset.symbol}`;
   const hasEncryptedBalance = encryptedBalance && encryptedBalance !== "0x0000000000000000000000000000000000000000000000000000000000000000";
   const wrapAmountWei = useMemo(() => safeParseEther(wrapAmount), [wrapAmount]);
 
@@ -80,12 +82,12 @@ export function ConfidentialPortfolio() {
 
   async function approveIfNeeded(amount: bigint) {
     if ((allowance ?? 0n) >= amount) return;
-    setAction({ label: "Approving cAAPL for confidential wrapping..." });
+    setAction({ label: `Approving ${selectedAsset.symbol} for confidential wrapping...` });
     const hash = await writeContractAsync({
-      address: caaplAddress,
-      abi: caaplAbi,
+      address: selectedAsset.baseAddress,
+      abi: baseAssetAbi,
       functionName: "approve",
-      args: [confidentialCAAPLAddress, amount],
+      args: [selectedAsset.wrapperAddress, amount],
     });
     setAction({ label: "Approval submitted", hash });
   }
@@ -99,10 +101,10 @@ export function ConfidentialPortfolio() {
 
     try {
       await approveIfNeeded(wrapAmountWei);
-      setAction({ label: "Wrapping cAAPL into confidential cAAPL..." });
+      setAction({ label: `Wrapping ${selectedAsset.symbol} into confidential ${selectedAsset.symbol}...` });
       const hash = await writeContractAsync({
-        address: confidentialCAAPLAddress,
-        abi: confidentialCAAPLAbi,
+        address: selectedAsset.wrapperAddress,
+        abi: confidentialWrapperAbi,
         functionName: "wrap",
         args: [wrapAmountWei, "0x"],
       });
@@ -136,8 +138,8 @@ export function ConfidentialPortfolio() {
 
       setAction({ label: "Submitting confidential transfer..." });
       const hash = await writeContractAsync({
-        address: confidentialCAAPLAddress,
-        abi: confidentialCAAPLAbi,
+        address: selectedAsset.wrapperAddress,
+        abi: confidentialWrapperAbi,
         functionName: "confidentialTransfer",
         args: [recipient as `0x${string}`, handlePayload.handle, "0x"],
       });
@@ -164,37 +166,38 @@ export function ConfidentialPortfolio() {
 
   return (
     <section className="section portfolio-section">
+      <AssetContextPill selectedAsset={selectedAsset} onChange={setSelectedAsset} />
       <div className="row">
         <div>
-          <h2>Your cAAPL</h2>
-          <p className="muted">Wrap cAAPL into ccAAPL for private payments, holder access, collateral, and rewards.</p>
+          <h2>Your {selectedAsset.symbol}</h2>
+          <p className="muted">{portfolioDescription(selectedAsset.symbol, selectedAsset.category)}</p>
         </div>
         {isConnected ? <span className="status-dot good">{shortAddress(address)}</span> : null}
       </div>
 
       {!isConnected ? (
-        <EmptyState title="Connect to start" text="No stocks yet. Connect your wallet to view cAAPL and wrap your first token." />
+        <EmptyState title="Connect to start" text={`No assets yet. Connect your wallet to view ${selectedAsset.symbol} and wrap your first token.`} />
       ) : (
         <div className="stack">
           <div className="metric-grid">
             <div className="metric">
-              <span className="muted">Standard cAAPL</span>
+              <span className="muted">Standard {selectedAsset.symbol}</span>
               <strong>{standardBalanceLabel}</strong>
             </div>
             <div className="metric">
-              <span className="muted">Encrypted balance handle</span>
+              <span className="muted">Encrypted {selectedAsset.symbol} balance handle</span>
               <strong className="handle-text">{hasEncryptedBalance ? `${encryptedBalance.slice(0, 10)}...` : "None yet"}</strong>
             </div>
           </div>
 
           {!hasEncryptedBalance ? (
-            <EmptyState title="No confidential stocks yet" text="Wrap your first cAAPL token to create a private balance." />
+            <EmptyState title="No confidential assets yet" text={`Wrap your first ${selectedAsset.symbol} token to create a private balance.`} />
           ) : null}
 
           <form className="action-panel" onSubmit={wrap}>
             <div>
-              <strong>Wrap cAAPL</strong>
-              <p className="muted">Deposits standard cAAPL and unlocks the confidential token utilities in the dashboard.</p>
+              <strong>Wrap {selectedAsset.symbol}</strong>
+              <p className="muted">Deposits standard {selectedAsset.symbol} and unlocks confidential token utilities in the dashboard.</p>
             </div>
             <input value={wrapAmount} onChange={(event) => setWrapAmount(event.target.value)} inputMode="decimal" />
             <button disabled={!wrapAmountWei}>Wrap</button>
@@ -209,7 +212,7 @@ export function ConfidentialPortfolio() {
               {revealLoading ? "Revealing..." : "Reveal My Balance"}
             </button>
             {revealRequested && revealedBalance !== undefined ? (
-              <p className="success">Revealed balance: {formatEther(revealedBalance)} confidential cAAPL</p>
+              <p className="success">Revealed balance: {formatEther(revealedBalance)} confidential {selectedAsset.symbol}</p>
             ) : null}
             {revealError ? <p className="error">{revealError.message}</p> : null}
           </div>
@@ -217,7 +220,7 @@ export function ConfidentialPortfolio() {
           <form className="action-panel" onSubmit={confidentialTransfer}>
             <div>
               <strong>Confidential transfer</strong>
-              <p className="muted">Settle a private stock payment with a verified investor without exposing the amount.</p>
+              <p className="muted">{transferDescription(selectedAsset.symbol, selectedAsset.category)}</p>
             </div>
             <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Recipient wallet" />
             <input value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} inputMode="decimal" />
@@ -253,6 +256,29 @@ function EmptyState({ title, text }: { title: string; text: string }) {
       <p>{text}</p>
     </div>
   );
+}
+
+function portfolioDescription(symbol: string, category: AssetCategory) {
+  const rewardLabel =
+    category === AssetCategory.STOCK_US || category === AssetCategory.STOCK_INTL
+      ? "dividends"
+      : category === AssetCategory.CRYPTO
+        ? "staking rewards"
+        : "yield";
+  return `Wrap ${symbol} into confidential ${symbol} for private payments, holder access, collateral, ${rewardLabel}, and governance.`;
+}
+
+function transferDescription(symbol: string, category: AssetCategory) {
+  if (category === AssetCategory.CRYPTO) {
+    return `Transfer ${symbol} privately between wallets without exposing the amount.`;
+  }
+  if (category === AssetCategory.COMMODITY) {
+    return `Settle a private ${symbol} commodity position without exposing the amount.`;
+  }
+  if (category === AssetCategory.STABLECOIN) {
+    return `Send private ${symbol} payments without exposing payroll, OTC, or treasury transfer amounts.`;
+  }
+  return `Settle a private ${symbol} equity payment with a verified investor without exposing the amount.`;
 }
 
 function safeParseEther(value: string) {

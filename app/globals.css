@@ -381,6 +381,25 @@ textarea {
   margin: 0;
 }
 
+.asset-context-pill {
+  align-items: center;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.28);
+  border-radius: 8px;
+  color: var(--ink);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(220px, 320px);
+  margin-bottom: 14px;
+  padding: 12px;
+}
+
+.asset-context-pill > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .identity-row {
   align-items: center;
   border: 1px solid var(--line);
@@ -2992,6 +3011,7 @@ textarea:focus {
 }
 
 @media (max-width: 760px) {
+  .asset-context-pill,
   .hero-feature-grid,
   .rewards-hero,
   .governance-hero,
