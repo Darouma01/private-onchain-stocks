@@ -32,7 +32,7 @@ export default function HomePage() {
       <div className="grid">
         <InvestorDashboardGate
           featureName="On-Chain Data Insights"
-          utility="Access control: aggregate investor analytics are available only after this wallet holds confidential cAAPL."
+          utility="Access control: aggregate investor analytics are available only after this wallet holds a confidential asset."
         >
           <OnChainDataInsightsPanel />
         </InvestorDashboardGate>

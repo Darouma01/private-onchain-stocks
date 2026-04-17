@@ -26,7 +26,7 @@ export async function POST(request: Request) {
         companyName: projectContext.name,
         companyDescription: projectContext.description,
         purpose:
-          "Help investors and developers understand cAAPL, ERC-3643 compliance, ERC-7984 confidential balances, iExec Nox TEE transfer checks, and smart-contract risk.",
+          "Help investors and developers understand the selected confidential asset, ERC-3643 compliance, ERC-7984 confidential balances, iExec Nox TEE transfer checks, and smart-contract risk.",
         cryptoToken: true,
         tokenInformation: {
           tokenName: projectContext.tokenName,

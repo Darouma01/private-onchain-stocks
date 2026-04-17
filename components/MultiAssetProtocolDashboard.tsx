@@ -1,10 +1,12 @@
 "use client";
 
-import { FormEvent, type CSSProperties, useEffect, useMemo, useState } from "react";
+import { FormEvent, type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatEther, parseEther } from "viem";
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { AssetCategory } from "@/deploy/assets.config";
+import { useAnyConfidentialBalance, useSelectedConfidentialBalance } from "@/components/useAnyConfidentialBalance";
+import { useSelectedAsset } from "@/components/useSelectedAsset";
 import {
   assetDeployment,
   categoryLabels,
@@ -21,6 +23,7 @@ import {
   shortAddress,
   txUrl,
 } from "@/lib/contracts";
+import { erc20Abi } from "@/lib/onchain";
 import { AddressDisplay, AssetSelector, ConfidentialBadge, EmptyState, KYCBadge, NetworkBadge, PriceDisplay, SkeletonRows, TierBadge } from "@/components/SharedUi";
 
 type Tab = "Markets" | "Portfolio" | "Trade" | "Dividends" | "Governance" | "Collateral" | "AI Tools";
@@ -52,6 +55,11 @@ type GovernanceProposal = {
   voters: number;
 };
 
+type AiChatMessage = {
+  role: "assistant" | "user";
+  content: string;
+};
+
 const tabs: Tab[] = ["Markets", "Portfolio", "Trade", "Dividends", "Governance", "Collateral", "AI Tools"];
 const categoryPills: Array<{ value: AssetCategory | "ALL"; label: string; icon: string }> = [
   { value: "ALL", label: "All", icon: "61" },
@@ -62,8 +70,8 @@ const categoryPills: Array<{ value: AssetCategory | "ALL"; label: string; icon: 
   { value: AssetCategory.STABLECOIN, label: "Stablecoins", icon: "💵" },
 ];
 
-export function MultiAssetProtocolDashboard() {
-  const [tab, setTab] = useState<Tab>("Markets");
+export function MultiAssetProtocolDashboard({ initialTab = "Markets" }: { initialTab?: Tab } = {}) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [category, setCategory] = useState<AssetCategory | "ALL">("ALL");
   const [query, setQuery] = useState("");
   const [selectedSymbol, setSelectedSymbol] = useState("cAAPL");
@@ -100,6 +108,10 @@ export function MultiAssetProtocolDashboard() {
       "#trade": "Trade",
     };
     function applyHash() {
+      if (window.location.pathname === "/ai-tools") {
+        setTab("AI Tools");
+        return;
+      }
       const nextTab = hashToTab[window.location.hash];
       if (nextTab) setTab(nextTab);
     }
@@ -431,6 +443,7 @@ function AssetTableRow({
         <div className="table-actions">
           <button onClick={onSelect} type="button">Wrap</button>
           <button className="secondary" onClick={onSelect} type="button">Trade</button>
+          <a className="ghost-button" href={`/ai-tools?asset=${encodeURIComponent(asset.symbol)}`}>Use {asset.symbol}</a>
           <button className="ghost-button" onClick={onDetails} type="button">Details</button>
         </div>
       </td>
@@ -1663,14 +1676,10 @@ function CollateralModal({ kind, onClose, selectedAsset }: { kind: "add" | "borr
   );
 }
 
-function AiToolsTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
-  const [auditSymbol, setAuditSymbol] = useState(selectedAsset.symbol);
-  const [chatInput, setChatInput] = useState("");
-  const [insightSymbol, setInsightSymbol] = useState(selectedAsset.symbol);
-  const auditAsset = deployedAssets.find((asset) => asset.symbol === auditSymbol) ?? selectedAsset;
-  const insightAsset = deployedAssets.find((asset) => asset.symbol === insightSymbol) ?? selectedAsset;
-  const insightMarket = marketDisplay(insightAsset);
-  const metrics = insightMetrics(insightAsset);
+function AiToolsTab({ selectedAsset: defaultAsset }: { selectedAsset: DeployedAsset }) {
+  const selected = useSelectedAsset(defaultAsset.symbol);
+  const selectedAsset = selected.selectedAsset;
+  const access = useAiToolsAccess(selectedAsset);
 
   return (
     <div className="ai-tools-dashboard">
@@ -1687,83 +1696,386 @@ function AiToolsTab({ selectedAsset }: { selectedAsset: DeployedAsset }) {
         </div>
       </section>
 
+      <AssetSelectorBar selectedSymbol={selected.selectedSymbol} onChange={selected.setSelectedSymbol} />
+
+      {!access.unlocked ? (
+        <AiToolsLockedState
+          access={access}
+          selectedAsset={selectedAsset}
+          onSwitchAsset={(symbol) => selected.setSelectedSymbol(symbol)}
+        />
+      ) : null}
+
       <section className="ai-tool-grid">
-        <article className="ai-tool-panel auditor-panel">
-          <div className="ai-panel-header">
-            <strong>Contract Auditor 🔍</strong>
-            <span>Powered by ChainGPT</span>
-          </div>
-          <AssetSelector label="Asset" selectedSymbol={auditAsset.symbol} onChange={setAuditSymbol} />
-          <div className="ai-address-box">
-            <span>Wrapper contract</span>
-            <AddressDisplay address={auditAsset.wrapperAddress} />
-          </div>
-          <button type="button">Run Audit</button>
-          <div className="audit-results">
-            <SkeletonRows rows={2} />
-            <div className="risk-score low">Risk score: LOW</div>
-            <ul>
-              <li><span className="severity low">LOW</span> Events preserve encrypted transfer amounts</li>
-              <li><span className="severity medium">MED</span> Confirm oracle freshness before production settlement</li>
-              <li><span className="severity low">LOW</span> Access checks rely on shared identity registry</li>
-            </ul>
-            <div className="recommendations">
-              <strong>Recommendations</strong>
-              <p>Keep confidential amount handles out of UI logs and verify wrapper addresses before demo transactions.</p>
-            </div>
-          </div>
-        </article>
-
-        <article className="ai-tool-panel assistant-panel">
-          <div className="ai-panel-header">
-            <strong>AI Assistant 🤖</strong>
-            <span>Powered by ChainGPT Web3 LLM</span>
-          </div>
-          <div className="chat-window">
-            <div className="chat-bubble ai">Ask me about the 61 confidential assets, private transfers, Nox, dividends, and collateral.</div>
-            <div className="chat-bubble user">How do confidential transfers work?</div>
-            <div className="chat-bubble ai">The dApp creates encrypted amount handles, then the wrapper submits metadata without plaintext amounts.</div>
-            <div className="typing-dots"><span /><span /><span /></div>
-          </div>
-          <div className="suggested-questions">
-            {["What is cAAPL?", "How do confidential transfers work?", "Explain Nox Protocol", "What is ERC-7984?", "How do I earn dividends?"].map((question) => (
-              <button className="secondary" key={question} onClick={() => setChatInput(question)} type="button">{question}</button>
-            ))}
-          </div>
-          <div className="chat-input-row">
-            <input onChange={(event) => setChatInput(event.target.value)} placeholder="Ask about any confidential asset" value={chatInput} />
-            <button type="button">Send</button>
-          </div>
-        </article>
-
-        <article className="ai-tool-panel insights-panel">
-          <div className="ai-panel-header">
-            <strong>Market Insights 📊</strong>
-            <ConfidentialBadge label="Aggregate only" />
-          </div>
-          <AssetSelector label="Asset" selectedSymbol={insightAsset.symbol} onChange={setInsightSymbol} />
-          <PriceDisplay change={insightMarket.change} price={insightMarket.price} symbol={insightAsset.symbol} />
-          <div className="insight-metrics-grid">
-            {metrics.map((metric) => (
-              <div key={metric.label}>
-                <span>{metric.label}</span>
-                <strong>{metric.value}</strong>
-              </div>
-            ))}
-          </div>
-          <div className="privacy-notice">Individual balances are never exposed 🔒</div>
-          <ResponsiveContainer height={190} width="100%">
-            <BarChart data={metrics}>
-              <XAxis dataKey="short" stroke="#475569" tick={{ fill: "#94A3B8", fontSize: 11 }} />
-              <YAxis hide />
-              <Tooltip contentStyle={{ background: "#111318", border: "1px solid #2A2D3A", borderRadius: 8, color: "#F8FAFC" }} />
-              <Bar dataKey="score" fill="#10B981" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </article>
+        <DynamicContractAuditor asset={selectedAsset} locked={!access.unlocked} />
+        <DynamicLLMAssistant asset={selectedAsset} locked={!access.unlocked} />
+        <DynamicOnChainInsights asset={selectedAsset} locked={!access.unlocked} />
       </section>
     </div>
   );
+}
+
+function useAiToolsAccess(selectedAsset: DeployedAsset) {
+  const selectedBalance = useSelectedConfidentialBalance(selectedAsset);
+  const anyBalance = useAnyConfidentialBalance(deployedAssets);
+  const otherHeldAsset = anyBalance.heldAssets.find((asset) => asset.symbol !== selectedAsset.symbol);
+
+  return {
+    error: selectedBalance.error ?? anyBalance.error,
+    hasAnyConfidentialBalance: anyBalance.hasAnyConfidentialBalance,
+    hasSelectedAssetBalance: selectedBalance.hasSelectedAssetBalance,
+    isConnected: selectedBalance.isConnected,
+    loading: selectedBalance.loading || anyBalance.loading,
+    otherHeldAsset,
+    unlocked: selectedBalance.hasSelectedAssetBalance,
+  };
+}
+
+function AssetSelectorBar({
+  onChange,
+  selectedSymbol,
+}: {
+  onChange: (symbol: string) => void;
+  selectedSymbol: string;
+}) {
+  const [category, setCategory] = useState<AssetCategory | "ALL">("ALL");
+  const [recentlyViewed, setRecentlyViewed] = useState<string[]>([]);
+  const selectedAsset = deployedAssets.find((asset) => asset.symbol === selectedSymbol) ?? deployedAssets[0];
+
+  useEffect(() => {
+    try {
+      const stored = window.sessionStorage.getItem("private-stocks:recent-ai-assets");
+      if (stored) setRecentlyViewed(JSON.parse(stored) as string[]);
+    } catch {
+      setRecentlyViewed([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    setRecentlyViewed((current) => {
+      const next = [selectedSymbol, ...current.filter((symbol) => symbol !== selectedSymbol)].slice(0, 5);
+      window.sessionStorage.setItem("private-stocks:recent-ai-assets", JSON.stringify(next));
+      return next;
+    });
+  }, [selectedSymbol]);
+
+  const visibleAssets = useMemo(() => {
+    return category === "ALL" ? deployedAssets : deployedAssets.filter((asset) => asset.category === category);
+  }, [category]);
+
+  return (
+    <section className="asset-selector-bar">
+      <div className="row">
+        <div>
+          <span className="muted">Select Asset to Analyze</span>
+          <h3>{selectedAsset.symbol} · {selectedAsset.name}</h3>
+        </div>
+        <KYCBadge status={selectedAsset.requiresKYC ? "Required" : "Open"} />
+      </div>
+      <AssetSelector label="Searchable asset registry" selectedSymbol={selectedSymbol} onChange={onChange} assets={visibleAssets} />
+      <div className="asset-selector-filters">
+        {categoryPills.map((item) => (
+          <button
+            className={category === item.value ? "active" : undefined}
+            key={item.value}
+            onClick={() => setCategory(item.value)}
+            type="button"
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      {recentlyViewed.length ? (
+        <div className="recent-assets">
+          <span>Recently viewed:</span>
+          {recentlyViewed.map((symbol) => (
+            <button key={symbol} onClick={() => onChange(symbol)} type="button">{symbol}</button>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function AiToolsLockedState({
+  access,
+  onSwitchAsset,
+  selectedAsset,
+}: {
+  access: ReturnType<typeof useAiToolsAccess>;
+  onSwitchAsset: (symbol: string) => void;
+  selectedAsset: DeployedAsset;
+}) {
+  let message = `Connect a verified wallet and wrap ${selectedAsset.symbol} into confidential ${selectedAsset.symbol} to unlock this feature.`;
+  let action: ReactNode = <a href="#trade">Wrap {selectedAsset.symbol}</a>;
+
+  if (!access.isConnected) {
+    message = "Connect wallet to access AI Tools.";
+    action = <a href="#wallet">Connect Wallet</a>;
+  } else if (access.loading) {
+    message = `Checking confidential balances before unlocking ${selectedAsset.symbol} AI Tools.`;
+    action = null;
+  } else if (access.otherHeldAsset) {
+    message = `You hold ${access.otherHeldAsset.symbol} — switch to that asset or wrap ${selectedAsset.symbol} to unlock.`;
+    action = (
+      <button onClick={() => onSwitchAsset(access.otherHeldAsset?.symbol ?? selectedAsset.symbol)} type="button">
+        Switch to {access.otherHeldAsset.symbol}
+      </button>
+    );
+  } else if (!access.hasAnyConfidentialBalance) {
+    message = "Wrap any confidential asset to unlock AI Tools.";
+  }
+
+  return (
+    <section className="locked-section ai-locked-state">
+      <strong>Confidential token holder access required</strong>
+      <p>{message}</p>
+      {action}
+      {access.error ? <p className="error">{access.error.message}</p> : null}
+    </section>
+  );
+}
+
+function DynamicOnChainInsights({ asset, locked }: { asset: DeployedAsset; locked: boolean }) {
+  const market = marketDisplay(asset);
+  const totalSupply = useReadContract({
+    address: asset.baseAddress,
+    abi: erc20Abi,
+    functionName: "totalSupply",
+    query: { enabled: !locked },
+  });
+  const wrappedSupply = useReadContract({
+    address: asset.baseAddress,
+    abi: baseAssetAbi,
+    functionName: "balanceOf",
+    args: [asset.wrapperAddress],
+    query: { enabled: !locked },
+  });
+
+  const loading = totalSupply.isLoading || wrappedSupply.isLoading;
+  const total = typeof totalSupply.data === "bigint" ? totalSupply.data : 0n;
+  const wrapped = typeof wrappedSupply.data === "bigint" ? wrappedSupply.data : 0n;
+  const wrapRatio = total > 0n ? Number((wrapped * 10000n) / total) / 100 : 0;
+  const metrics = [
+    { label: "Total Base Supply", short: "Base", score: total > 0n ? 82 : 12, value: totalSupply.error ? "No data available" : formatTokenMetric(total) },
+    { label: "Total Wrapped Supply", short: "Wrapped", score: wrapped > 0n ? 72 : 8, value: wrappedSupply.error ? "No data available" : formatTokenMetric(wrapped) },
+    { label: "Wrap Ratio", short: "Ratio", score: Math.min(100, wrapRatio), value: `${wrapRatio.toFixed(2)}%` },
+    { label: "Unique Holders", short: "Holders", score: 45, value: "No data available" },
+    { label: "Confidential Holders", short: "Private", score: 38, value: "No data available" },
+    { label: "Last Wrap Event", short: "Wrap", score: 62, value: "No data available" },
+    { label: "Last Transfer Event", short: "Transfer", score: 58, value: "No data available" },
+  ];
+
+  return (
+    <article className={locked ? "ai-tool-panel insights-panel locked-panel" : "ai-tool-panel insights-panel"}>
+      <div className="ai-panel-header">
+        <strong>{asset.symbol} On-Chain Insights</strong>
+        <ConfidentialBadge label="Aggregate only" />
+      </div>
+      <PriceDisplay change={market.change} price={market.price} symbol={asset.symbol} />
+      <div className="ai-address-grid">
+        <div>
+          <span>Base Token</span>
+          <AddressDisplay address={asset.baseAddress} />
+        </div>
+        <div>
+          <span>Wrapper</span>
+          <AddressDisplay address={asset.wrapperAddress} />
+        </div>
+      </div>
+      {loading ? <SkeletonRows rows={4} /> : null}
+      <div className="insight-metrics-grid">
+        {metrics.map((metric) => (
+          <div key={metric.label}>
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+          </div>
+        ))}
+        <div>
+          <span>Contract Verified</span>
+          <strong><a href={addressUrl(asset.wrapperAddress)} rel="noreferrer" target="_blank">✅ Yes</a></strong>
+        </div>
+        <div>
+          <span>Asset Category</span>
+          <strong>{categoryLabels[asset.category]}</strong>
+        </div>
+        <div>
+          <span>KYC Required</span>
+          <strong>{asset.requiresKYC ? "Yes" : "No"}</strong>
+        </div>
+      </div>
+      <div className="privacy-notice">Individual balances are never exposed 🔒</div>
+      <ResponsiveContainer height={190} width="100%">
+        <BarChart data={metrics}>
+          <XAxis dataKey="short" stroke="#475569" tick={{ fill: "#94A3B8", fontSize: 11 }} />
+          <YAxis hide />
+          <Tooltip contentStyle={{ background: "#111318", border: "1px solid #2A2D3A", borderRadius: 8, color: "#F8FAFC" }} />
+          <Bar dataKey="score" fill="#10B981" radius={[6, 6, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </article>
+  );
+}
+
+function DynamicContractAuditor({ asset, locked }: { asset: DeployedAsset; locked: boolean }) {
+  const [contractType, setContractType] = useState<"Base" | "Wrapper">("Wrapper");
+  const currentAddress = contractType === "Base" ? asset.baseAddress : asset.wrapperAddress;
+  const standard = contractType === "Base" ? "ERC-3643" : "ERC-7984";
+
+  return (
+    <article className={locked ? "ai-tool-panel auditor-panel locked-panel" : "ai-tool-panel auditor-panel"}>
+      <div className="ai-panel-header">
+        <strong>{asset.symbol} Contract Auditor</strong>
+        <span>Currently auditing: {contractType}</span>
+      </div>
+      <div className="segmented-control">
+        {(["Base", "Wrapper"] as const).map((item) => (
+          <button className={contractType === item ? "active" : undefined} key={item} onClick={() => setContractType(item)} type="button">
+            {item} Contract
+          </button>
+        ))}
+      </div>
+      <div className="ai-address-box">
+        <span>{asset.name} — {contractType} Contract</span>
+        <AddressDisplay address={currentAddress} />
+      </div>
+      <button disabled={locked} type="button">Run Audit</button>
+      <div className="audit-results">
+        <SkeletonRows rows={2} />
+        <div className="risk-score low">Audit Report: {asset.symbol} {contractType} Contract</div>
+        <div className="audit-context">
+          <span>Asset: {asset.name} ({asset.symbol})</span>
+          <span>Category: {categoryLabels[asset.category]}</span>
+          <span>Network: Arbitrum Sepolia</span>
+          <span>Standard: {standard}</span>
+        </div>
+        <ul>
+          <li><span className="severity low">LOW</span> Events preserve encrypted transfer amounts for {asset.symbol}</li>
+          <li><span className="severity medium">MED</span> Confirm oracle freshness before production settlement</li>
+          <li><span className="severity low">LOW</span> Access checks are tied to confidential holder state</li>
+        </ul>
+        <div className="recommendations">
+          <strong>Recommendations</strong>
+          <p>Verify the selected {contractType.toLowerCase()} address before demo transactions and keep encrypted handles out of public UI logs.</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function DynamicLLMAssistant({ asset, locked }: { asset: DeployedAsset; locked: boolean }) {
+  const [chatInput, setChatInput] = useState("");
+  const [messages, setMessages] = useState(() => initialAssetMessages(asset));
+
+  useEffect(() => {
+    const shouldClear =
+      messages.length <= 1 || window.confirm(`Switch AI Assistant context to ${asset.symbol}? This clears the current chat history.`);
+    if (shouldClear) {
+      setMessages(initialAssetMessages(asset));
+      setChatInput("");
+    }
+  }, [asset.symbol]);
+
+  const questions = suggestedAssetQuestions(asset);
+
+  function sendMessage(forced?: string) {
+    const prompt = (forced ?? chatInput).trim();
+    if (!prompt || locked) return;
+    setMessages((current) => [
+      ...current,
+      { role: "user", content: prompt },
+      { role: "assistant", content: `Context loaded for ${asset.name} (${asset.symbol}). Base: ${shortAddress(asset.baseAddress)}. Wrapper: ${shortAddress(asset.wrapperAddress)}. ${asset.requiresKYC ? "KYC is required." : "KYC is open for this asset."}` },
+    ]);
+    setChatInput("");
+  }
+
+  return (
+    <article className={locked ? "ai-tool-panel assistant-panel locked-panel" : "ai-tool-panel assistant-panel"}>
+      <div className="ai-panel-header">
+        <strong>{asset.symbol} AI Assistant 🤖</strong>
+        <span>Powered by ChainGPT Web3 LLM</span>
+      </div>
+      <div className="system-context">
+        You are viewing {asset.name} ({asset.symbol}), a {categoryLabels[asset.category]} asset on Arbitrum Sepolia. Base
+        contract: {shortAddress(asset.baseAddress)}. Wrapper contract: {shortAddress(asset.wrapperAddress)}. KYC Required:
+        {asset.requiresKYC ? " Yes" : " No"}. Standard: ERC-3643 + ERC-7984.
+      </div>
+      <div className="chat-window">
+        {messages.map((message, index) => (
+          <div className={`chat-bubble ${message.role === "assistant" ? "ai" : "user"}`} key={`${message.role}-${index}`}>
+            {message.content}
+          </div>
+        ))}
+        <div className="typing-dots"><span /><span /><span /></div>
+      </div>
+      <div className="suggested-questions">
+        {questions.map((question) => (
+          <button className="secondary" disabled={locked} key={question} onClick={() => sendMessage(question)} type="button">{question}</button>
+        ))}
+      </div>
+      <div className="chat-input-row">
+        <input
+          disabled={locked}
+          onChange={(event) => setChatInput(event.target.value)}
+          placeholder={`Ask about ${asset.symbol}`}
+          value={chatInput}
+        />
+        <button disabled={locked || !chatInput.trim()} onClick={() => sendMessage()} type="button">Send</button>
+      </div>
+    </article>
+  );
+}
+
+function initialAssetMessages(asset: DeployedAsset): AiChatMessage[] {
+  return [
+    {
+      role: "assistant" as const,
+      content: `You are viewing ${asset.name} (${asset.symbol}), a ${categoryLabels[asset.category]} asset deployed on Arbitrum Sepolia. Ask about wrapping, private transfers, KYC, dividends, collateral, or contract risk for this specific asset.`,
+    },
+  ];
+}
+
+function suggestedAssetQuestions(asset: DeployedAsset) {
+  if (asset.category === AssetCategory.STOCK_US || asset.category === AssetCategory.STOCK_INTL) {
+    return [
+      `What is ${asset.symbol} and why is KYC required?`,
+      `How do I wrap ${asset.symbol} tokens?`,
+      `What dividends does ${asset.symbol} offer?`,
+      `Which countries are blocked from holding ${asset.symbol}?`,
+    ];
+  }
+
+  if (asset.category === AssetCategory.CRYPTO) {
+    return [
+      `What is confidential ${asset.symbol}?`,
+      `How does ${asset.symbol} differ from regular ${asset.symbol.replace(/^c/, "")}?`,
+      `Do I need KYC for ${asset.symbol}?`,
+      `Can I use ${asset.symbol} as collateral?`,
+    ];
+  }
+
+  if (asset.category === AssetCategory.COMMODITY) {
+    return [
+      `What backs the value of ${asset.symbol}?`,
+      `How is ${asset.symbol} price determined?`,
+      `What settlement currency does ${asset.symbol} use?`,
+    ];
+  }
+
+  return [
+    `How does ${asset.symbol} maintain its peg?`,
+    `Can I use ${asset.symbol} to buy other assets?`,
+    `What yield does ${asset.symbol} offer?`,
+  ];
+}
+
+function formatTokenMetric(value: bigint) {
+  if (value === 0n) return "0";
+  const formatted = formatEther(value);
+  const [whole, fraction = ""] = formatted.split(".");
+  const compactWhole = new Intl.NumberFormat("en-US").format(Number(whole));
+  const trimmedFraction = fraction.slice(0, 2).replace(/0+$/, "");
+  return trimmedFraction ? `${compactWhole}.${trimmedFraction}` : compactWhole;
 }
 
 function SelectedAssetPanel({ asset, label }: { asset: DeployedAsset; label: string }) {

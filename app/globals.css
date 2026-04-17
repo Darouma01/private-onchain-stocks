@@ -2762,6 +2762,72 @@ textarea:focus {
   gap: 14px;
 }
 
+.asset-selector-bar {
+  background: #111318;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 8px;
+  box-shadow: 0 0 28px rgba(99, 102, 241, 0.08);
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.asset-selector-bar h3 {
+  color: var(--ink);
+  margin: 4px 0 0;
+}
+
+.asset-selector-filters,
+.recent-assets,
+.segmented-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.asset-selector-filters button,
+.recent-assets button,
+.segmented-control button {
+  background: #0f1117;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.asset-selector-filters button.active,
+.segmented-control button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.recent-assets {
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ai-locked-state {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.ai-locked-state strong {
+  color: var(--gold);
+}
+
+.ai-locked-state p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.locked-panel {
+  opacity: 0.78;
+}
+
 .ai-panel-header strong {
   color: var(--ink);
 }
@@ -2772,13 +2838,38 @@ textarea:focus {
 }
 
 .ai-address-box,
+.ai-address-grid > div,
 .audit-results,
 .chat-window,
+.system-context,
 .insight-metrics-grid {
   background: #0a0b0d;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
+}
+
+.ai-address-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ai-address-box > span,
+.ai-address-grid span,
+.system-context {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.audit-context {
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  gap: 6px;
+  padding: 10px;
 }
 
 .risk-score,
@@ -2905,6 +2996,7 @@ textarea:focus {
   .rewards-hero,
   .governance-hero,
   .collateral-hero,
+  .ai-address-grid,
   .collateral-summary-grid,
   .ai-tools-header {
     grid-template-columns: 1fr;

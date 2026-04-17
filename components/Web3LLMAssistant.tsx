@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import type { ChatMessage } from "@/types/ai";
 
 const starterQuestions = [
-  "How do private ccAAPL payments work?",
+  "How do private confidential-asset payments work?",
   "What unlocks VIP investor access?",
   "How do confidential rewards work?",
 ];
@@ -14,7 +14,7 @@ export function Web3LLMAssistant() {
     {
       role: "assistant",
       content:
-        "Ask about cAAPL, confidential transfers, ERC-3643 compliance, ERC-7984 encrypted balances, or contract risk.",
+        "Ask about confidential assets, ERC-3643 compliance, ERC-7984 encrypted balances, private transfers, or contract risk.",
     },
   ]);
   const [question, setQuestion] = useState("");

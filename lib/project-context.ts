@@ -1,16 +1,16 @@
 export const projectContext = {
   name: "Private Onchain Stocks",
-  tokenName: "Confidential Apple Stock",
-  tokenSymbol: "cAAPL",
-  confidentialSymbol: "ccAAPL",
+  tokenName: "Selected Confidential Asset",
+  tokenSymbol: "selected asset",
+  confidentialSymbol: "selected confidential wrapper",
   description:
-    "A protocol that tokenizes real-world equities such as Apple stock using ERC-3643 compliance and ERC-7984 confidential token pointers. Standard cAAPL is the regulated ERC-3643 asset. ccAAPL is the reversible confidential wrapper with hidden balances and transfer amounts.",
+    "A protocol that tokenizes real-world assets using ERC-3643 compliance and ERC-7984 confidential token pointers. Each base asset is the regulated asset layer, and each wrapper is the reversible confidential token with hidden balances and transfer amounts.",
   privacy:
     "Balances and transfer amounts are stored as encrypted bytes32 handles. iExec Nox TEE computations verify confidential transfers, wrap, unwrap, and disclosure flows. Public UI must never expose individual confidential balances.",
   compliance:
-    "Only verified KYC/AML addresses can hold or receive cAAPL exposure. Compliance rules include maximum investor balance, country restrictions, and holder-count limits.",
+    "Only verified KYC/AML addresses can hold or receive restricted stock exposure. Compliance rules include maximum investor balance, country restrictions, and holder-count limits.",
   utility:
-    "ccAAPL is the protocol's active utility token. It powers private payments between verified investors, holder-gated dashboard access, private VIP threshold checks, private collateral eligibility, and confidential dividend/reward eligibility.",
+    "Confidential wrappers are the protocol's active utility tokens. They power private payments between verified investors, holder-gated dashboard access, private VIP threshold checks, private collateral eligibility, confidential governance weight, and confidential dividend/reward eligibility.",
 };
 
 export function buildAssistantQuestion(question: string) {
@@ -28,7 +28,7 @@ export function buildAssistantQuestion(question: string) {
 
 export function buildInsightsQuestion(payload: unknown) {
   return [
-    "Summarize the following live on-chain aggregate data for the Private Onchain Stocks cAAPL protocol.",
+    "Summarize the following live on-chain aggregate data for the Private Onchain Stocks protocol.",
     "Never infer or reveal individual confidential balances. Treat encrypted amount handles as opaque.",
     "Call out operational risk if data is missing or if activity looks unusual.",
     "",
@@ -43,7 +43,7 @@ export function buildAuditQuestion(input: string, inputType: "address" | "code")
       : `The user submitted this Solidity source code:\n\n${input}`;
 
   return [
-    "Audit this contract for an investor considering cAAPL exposure.",
+    "Audit this contract for an investor considering confidential asset exposure.",
     "Focus on smart-contract security, access control, reentrancy, compliance bypasses, ERC-3643 issues, ERC-7984 confidential-token issues, Nox TEE trust assumptions, and upgrade/admin risks.",
     "Return a practical report with risk level, vulnerabilities, recommendations, and investor-facing caveats.",
     "",

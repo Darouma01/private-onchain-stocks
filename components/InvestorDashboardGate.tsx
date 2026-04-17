@@ -16,11 +16,11 @@ export function InvestorDashboardGate({ featureName, utility, children }: Invest
     return <>{children}</>;
   }
 
-  let message = "Connect a verified wallet and wrap cAAPL into confidential cAAPL to unlock this holder feature.";
+  let message = "Connect a verified wallet and wrap a confidential asset to unlock this holder feature.";
   if (isConnected && encryptedLoading) {
     message = "Checking your confidential stock token handle before unlocking this feature.";
   } else if (isConnected) {
-    message = "This feature is locked until this wallet holds confidential cAAPL.";
+    message = "This feature is locked until this wallet holds a confidential asset.";
   }
 
   return (

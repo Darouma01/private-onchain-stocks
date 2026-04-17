@@ -6,17 +6,19 @@ import { categoryLabels, deployedAssetCategories, deployedAssets, type DeployedA
 import { addressUrl, shortAddress } from "@/lib/contracts";
 
 export function AssetSelector({
+  assets = deployedAssets,
   label,
   onChange,
   selectedSymbol,
 }: {
+  assets?: DeployedAsset[];
   label: string;
   onChange: (symbol: string) => void;
   selectedSymbol: string;
 }) {
   const [query, setQuery] = useState("");
   const normalized = query.trim().toLowerCase();
-  const filtered = deployedAssets.filter(
+  const filtered = assets.filter(
     (asset) =>
       normalized.length === 0 ||
       asset.symbol.toLowerCase().includes(normalized) ||
@@ -35,7 +37,7 @@ export function AssetSelector({
               .filter((asset) => asset.category === category)
               .map((asset) => (
                 <option key={asset.symbol} value={asset.symbol}>
-                  {assetBadge(asset)} {asset.symbol} · {asset.name}
+                  {assetBadge(asset)} {asset.symbol} · {asset.name} · {categoryLabels[asset.category]} · {asset.requiresKYC ? "KYC Required" : "Open"}
                 </option>
               ))}
           </optgroup>
