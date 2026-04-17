@@ -76,8 +76,27 @@ export function MultiAssetProtocolDashboard() {
     }));
   }, []);
 
+  useEffect(() => {
+    const hashToTab: Record<string, Tab> = {
+      "#ai-tools": "AI Tools",
+      "#collateral": "Collateral",
+      "#dividends": "Dividends",
+      "#governance": "Governance",
+      "#markets": "Markets",
+      "#portfolio": "Portfolio",
+      "#trade": "Trade",
+    };
+    function applyHash() {
+      const nextTab = hashToTab[window.location.hash];
+      if (nextTab) setTab(nextTab);
+    }
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
+
   return (
-    <section className="section multi-asset-section">
+    <section className="section multi-asset-section" id="markets">
       <div className="row">
         <div>
           <h2>61 Deployed Confidential Assets</h2>
@@ -109,7 +128,10 @@ export function MultiAssetProtocolDashboard() {
           <button
             className={item === tab ? "tab active" : "tab"}
             key={item}
-            onClick={() => setTab(item)}
+            onClick={() => {
+              setTab(item);
+              window.history.replaceState(null, "", `#${item.toLowerCase().replaceAll(" ", "-")}`);
+            }}
             type="button"
           >
             {item}

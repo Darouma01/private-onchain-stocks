@@ -24,11 +24,11 @@ export default function HomePage() {
         <KycStatusCard />
       </div>
 
-      <div id="markets">
+      <div id="portfolio">
         <MultiAssetProtocolDashboard />
       </div>
 
-      <div className="primary-grid" id="portfolio">
+      <div className="primary-grid" id="portfolio-utilities">
         <ConfidentialPortfolio />
         <ConfidentialTokenUtilityPanel />
       </div>
