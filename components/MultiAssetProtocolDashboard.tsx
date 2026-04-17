@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatEther, parseEther } from "viem";
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { AssetCategory } from "@/deploy/assets.config";
@@ -414,6 +415,7 @@ function AssetDetailPanel({ asset, onClose, onSelect }: { asset: DeployedAsset; 
   const [chartRange, setChartRange] = useState<"1D" | "7D" | "30D">("7D");
   const market = marketDisplay(asset);
   const chartValues = chartRange === "1D" ? market.sparkline.slice(-6) : chartRange === "7D" ? market.sparkline : [...market.sparkline, ...market.sparkline].slice(0, 14);
+  const chartData = chartValues.map((value, index) => ({ label: `${index + 1}`, value }));
 
   async function copyAddress(value: string) {
     await navigator.clipboard.writeText(value);
@@ -448,7 +450,25 @@ function AssetDetailPanel({ asset, onClose, onSelect }: { asset: DeployedAsset; 
           ))}
         </div>
         <div className="drawer-chart">
-          <Sparkline values={chartValues} positive={market.change >= 0} />
+          <ResponsiveContainer height={180} width="100%">
+            <LineChart data={chartData} margin={{ bottom: 8, left: 0, right: 12, top: 10 }}>
+              <XAxis dataKey="label" hide />
+              <YAxis domain={["dataMin", "dataMax"]} hide />
+              <Tooltip
+                contentStyle={{ background: "#111318", border: "1px solid #2A2D3A", borderRadius: 8, color: "#F8FAFC" }}
+                formatter={(value) => [formatMarketPrice(Number(value)), asset.symbol]}
+                labelFormatter={() => chartRange}
+              />
+              <Line
+                dataKey="value"
+                dot={false}
+                isAnimationActive={false}
+                stroke={market.change >= 0 ? "#10B981" : "#EF4444"}
+                strokeWidth={3}
+                type="monotone"
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
 
         <div className="drawer-section">
