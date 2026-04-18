@@ -1,13 +1,10 @@
 import { ConfidentialTokenUtilityPanel } from "@/components/ConfidentialTokenUtilityPanel";
-import { InvestorDashboardGate } from "@/components/InvestorDashboardGate";
+import { PublicAiToolsSection } from "@/components/ai/PublicAiToolsSection";
 import { KycStatusCard } from "@/components/KycStatusCard";
 import { LandingFooter } from "@/components/LandingFooter";
 import { LandingHero } from "@/components/LandingHero";
 import { MultiAssetProtocolDashboard } from "@/components/MultiAssetProtocolDashboard";
-import { OnChainDataInsightsPanel } from "@/components/OnChainDataInsightsPanel";
-import { SmartContractAuditorWidget } from "@/components/SmartContractAuditorWidget";
 import { WalletPanel } from "@/components/WalletPanel";
-import { Web3LLMAssistant } from "@/components/Web3LLMAssistant";
 
 export default function HomePage() {
   return (
@@ -27,26 +24,7 @@ export default function HomePage() {
         <ConfidentialTokenUtilityPanel />
       </div>
 
-      <div className="grid">
-        <InvestorDashboardGate
-          featureName="On-Chain Data Insights"
-          utility="Access control: aggregate investor analytics are available only after this wallet holds a confidential asset."
-        >
-          <OnChainDataInsightsPanel />
-        </InvestorDashboardGate>
-        <InvestorDashboardGate
-          featureName="Smart Contract Auditor"
-          utility="Access control: holder-only due diligence for confidential stock positions and collateral risk."
-        >
-          <SmartContractAuditorWidget />
-        </InvestorDashboardGate>
-        <InvestorDashboardGate
-          featureName="Web3 LLM Assistant"
-          utility="Rewards and in-app currency: holder-only guidance for private payments, collateral, dividends, and VIP tiers."
-        >
-          <Web3LLMAssistant />
-        </InvestorDashboardGate>
-      </div>
+      <PublicAiToolsSection />
 
       <LandingFooter />
     </main>
