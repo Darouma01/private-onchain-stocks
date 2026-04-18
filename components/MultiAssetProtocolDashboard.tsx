@@ -28,6 +28,11 @@ import { AddressDisplay, AssetSelector, ConfidentialBadge, EmptyState, KYCBadge,
 import { getCachedAssetPrice, usePrices } from "@/lib/prices/usePrices";
 import { getUtilityText } from "@/lib/utilities/getUtilityText";
 import { SparklineChart } from "@/components/SparklineChart";
+import { TransferTab } from "@/components/trade/TransferTab";
+import { TradeAssetSelect } from "@/components/trade/TradeShared";
+import { UnwrapTab } from "@/components/trade/UnwrapTab";
+import { WrapTab } from "@/components/trade/WrapTab";
+import type { TradeMode } from "@/components/trade/tradeTypes";
 
 type Tab = "Markets" | "Portfolio" | "Trade" | "Dividends" | "Governance" | "Collateral" | "AI Tools";
 type MarketSortKey = "symbol" | "name" | "category" | "price" | "change" | "kyc";
@@ -82,6 +87,7 @@ const categoryPills: Array<{ value: AssetCategory | "ALL"; label: string; icon: 
 export function MultiAssetProtocolDashboard({ initialTab = "Markets" }: { initialTab?: Tab } = {}) {
   const priceState = usePrices();
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [tradeMode, setTradeMode] = useState<TradeMode>("Wrap");
   const [category, setCategory] = useState<AssetCategory | "ALL">("ALL");
   const [query, setQuery] = useState("");
   const { selectedAsset, selectedSymbol, setSelectedSymbol } = useSelectedAsset();
@@ -184,14 +190,16 @@ export function MultiAssetProtocolDashboard({ initialTab = "Markets" }: { initia
           filteredAssets={filteredAssets}
           query={query}
           selectedSymbol={selectedSymbol}
+          setTab={setTab}
           setCategory={setCategory}
           setQuery={setQuery}
+          setTradeMode={setTradeMode}
           setSelectedSymbol={setSelectedSymbol}
           selectedAsset={selectedAsset}
         />
       ) : null}
       {tab === "Portfolio" ? <PortfolioTab selectedAsset={selectedAsset} /> : null}
-      {tab === "Trade" ? <TradeTab selectedAsset={selectedAsset} setSelectedSymbol={setSelectedSymbol} /> : null}
+      {tab === "Trade" ? <TradeTab mode={tradeMode} selectedAsset={selectedAsset} setMode={setTradeMode} setSelectedSymbol={setSelectedSymbol} /> : null}
       {tab === "Dividends" ? <DividendsTab selectedAsset={selectedAsset} /> : null}
       {tab === "Governance" ? <GovernanceTab selectedAsset={selectedAsset} /> : null}
       {tab === "Collateral" ? <CollateralTab selectedAsset={selectedAsset} /> : null}
@@ -209,6 +217,8 @@ function MarketsTab({
   selectedAsset,
   setCategory,
   setQuery,
+  setTab,
+  setTradeMode,
   setSelectedSymbol,
 }: {
   category: AssetCategory | "ALL";
@@ -219,6 +229,8 @@ function MarketsTab({
   selectedAsset: DeployedAsset;
   setCategory: (category: AssetCategory | "ALL") => void;
   setQuery: (query: string) => void;
+  setTab: (tab: Tab) => void;
+  setTradeMode: (mode: TradeMode) => void;
   setSelectedSymbol: (symbol: string) => void;
 }) {
   const [sortKey, setSortKey] = useState<MarketSortKey>("symbol");
@@ -313,6 +325,14 @@ function MarketsTab({
     setSortDirection(nextKey === "price" || nextKey === "change" ? "desc" : "asc");
   }
 
+  function openTrade(asset: DeployedAsset, mode: TradeMode) {
+    setSelectedSymbol(asset.symbol);
+    setTradeMode(mode);
+    setTab("Trade");
+    window.history.replaceState(null, "", `?asset=${encodeURIComponent(asset.symbol)}#trade`);
+    window.scrollTo({ behavior: "smooth", top: 0 });
+  }
+
   return (
     <div className="stack">
       <div className="market-overview-grid">
@@ -378,8 +398,9 @@ function MarketsTab({
                   isSelected={selectedSymbol === asset.symbol}
                   key={asset.symbol}
                   onDetails={() => setDetailAsset(asset)}
-                  onSelect={() => setSelectedSymbol(asset.symbol)}
+                  onTrade={() => openTrade(asset, "Transfer")}
                   onToggleFavorite={() => toggleFavorite(asset.symbol)}
+                  onWrap={() => openTrade(asset, "Wrap")}
                   sparklineData={sparklineState.sparklines[asset.symbol]}
                   sparklineLoading={sparklineState.isLoading}
                 />
@@ -395,7 +416,7 @@ function MarketsTab({
           asset={detailAsset}
           onClose={() => setDetailAsset(null)}
           onSelect={() => {
-            setSelectedSymbol(detailAsset.symbol);
+            openTrade(detailAsset, "Wrap");
             setDetailAsset(null);
           }}
         />
@@ -441,8 +462,9 @@ function AssetTableRow({
   index,
   isSelected,
   onDetails,
-  onSelect,
+  onTrade,
   onToggleFavorite,
+  onWrap,
   sparklineData,
   sparklineLoading,
 }: {
@@ -451,8 +473,9 @@ function AssetTableRow({
   index: number;
   isSelected: boolean;
   onDetails: () => void;
-  onSelect: () => void;
+  onTrade: () => void;
   onToggleFavorite: () => void;
+  onWrap: () => void;
   sparklineData?: number[];
   sparklineLoading: boolean;
 }) {
@@ -500,8 +523,8 @@ function AssetTableRow({
       </td>
       <td>
         <div className="table-actions">
-          <button onClick={onSelect} type="button">Wrap</button>
-          <button className="secondary" onClick={onSelect} type="button">Trade</button>
+          <button onClick={onWrap} type="button">Wrap</button>
+          <button className="secondary" onClick={onTrade} type="button">Trade</button>
           <a className="ghost-button" href={`/?asset=${encodeURIComponent(asset.symbol)}#portfolio-utilities`}>Use {asset.symbol}</a>
           <button className="ghost-button" onClick={onDetails} type="button">Details</button>
         </div>
@@ -858,30 +881,20 @@ function PortfolioHoldingRow({
 }
 
 function TradeTab({
+  mode,
   selectedAsset,
+  setMode,
   setSelectedSymbol,
 }: {
+  mode: TradeMode;
   selectedAsset: DeployedAsset;
+  setMode: (mode: TradeMode) => void;
   setSelectedSymbol: (symbol: string) => void;
 }) {
-  const [tradeMode, setTradeMode] = useState<"Wrap" | "Unwrap" | "Transfer" | "Swap">("Wrap");
   const [chartRange, setChartRange] = useState<"1H" | "1D" | "7D" | "30D">("7D");
-  const [amount, setAmount] = useState("10");
-  const [recipient, setRecipient] = useState("");
-  const [toSymbol, setToSymbol] = useState("cUSDC");
-  const [slippage, setSlippage] = useState("0.5");
-  const toAsset = deployedAssets.find((asset) => asset.symbol === toSymbol) ?? deployedAssets.find((asset) => asset.symbol === "cUSDC") ?? deployedAssets[0];
   const market = marketDisplay(selectedAsset);
-  const toMarket = marketDisplay(toAsset);
   const chartData = tradeChartData(selectedAsset, chartRange);
-  const exchangeRate = market.price / toMarket.price;
-  const recipientValid = recipient.length === 0 || /^0x[a-fA-F0-9]{40}$/.test(recipient) || recipient.endsWith(".eth");
-  const tradeTabs = ["Wrap", "Unwrap", "Transfer", "Swap"] as const;
-
-  function reverseSwap() {
-    setSelectedSymbol(toAsset.symbol);
-    setToSymbol(selectedAsset.symbol);
-  }
+  const tradeTabs: TradeMode[] = ["Wrap", "Transfer", "Unwrap"];
 
   return (
     <div className="trade-dashboard">
@@ -889,134 +902,15 @@ function TradeTab({
         <div className="trade-panel">
           <div className="trade-panel-tabs" role="tablist" aria-label="Trade mode">
             {tradeTabs.map((item) => (
-              <button className={tradeMode === item ? "active" : undefined} key={item} onClick={() => setTradeMode(item)} type="button">
+              <button className={mode === item ? "active" : undefined} key={item} onClick={() => setMode(item)} type="button">
                 {item}
               </button>
             ))}
           </div>
 
-          {tradeMode === "Wrap" ? (
-            <div className="trade-form-card">
-              <TradeAssetSelect label="Asset" selectedSymbol={selectedAsset.symbol} onChange={setSelectedSymbol} />
-              <div className="trade-amount-box">
-                <label htmlFor="wrap-amount">Amount</label>
-                <div>
-                  <input id="wrap-amount" inputMode="decimal" onChange={(event) => setAmount(event.target.value)} value={amount} />
-                  <button className="ghost-button" onClick={() => setAmount("100")} type="button">MAX</button>
-                </div>
-              </div>
-              <div className="trade-info-grid">
-                <span>KYC status</span>
-                <strong className={selectedAsset.requiresKYC ? "kyc-warning" : "kyc-ok"}>
-                  {selectedAsset.requiresKYC ? "❌ KYC required" : "✅ Open market"}
-                </strong>
-                <span>Price</span>
-                <strong>1 {selectedAsset.symbol} = {formatMarketPrice(market.price)}</strong>
-                <span>Estimated gas</span>
-                <strong>~0.00008 ETH</strong>
-              </div>
-              <SkeletonRows rows={1} />
-              <div className="privacy-notice">🔒 Your balance will be encrypted on-chain</div>
-              <button disabled={selectedAsset.requiresKYC} type="button">Wrap to Confidential</button>
-              <div className="trade-steps">
-                <span className="active">Approve</span>
-                <span>Wrap</span>
-                <span>Confirmed 🔒</span>
-              </div>
-            </div>
-          ) : null}
-
-          {tradeMode === "Unwrap" ? (
-            <div className="trade-form-card">
-              <TradeAssetSelect label="Confidential asset" selectedSymbol={selectedAsset.symbol} onChange={setSelectedSymbol} holdingsOnly />
-              <div className="encrypted-balance-card">
-                <span>Encrypted balance</span>
-                <strong>🔒 0x8f4a...c921</strong>
-                <button className="ghost-button" type="button">Reveal</button>
-              </div>
-              <div className="trade-amount-box">
-                <label htmlFor="unwrap-amount">Amount</label>
-                <input id="unwrap-amount" inputMode="decimal" onChange={(event) => setAmount(event.target.value)} value={amount} />
-              </div>
-              <button type="button">Unwrap to Standard ERC-20</button>
-            </div>
-          ) : null}
-
-          {tradeMode === "Transfer" ? (
-            <div className="trade-form-card">
-              <TradeAssetSelect label="Held asset" selectedSymbol={selectedAsset.symbol} onChange={setSelectedSymbol} holdingsOnly />
-              <label className="trade-field">
-                Recipient ENS or address
-                <input
-                  aria-invalid={!recipientValid}
-                  onChange={(event) => setRecipient(event.target.value)}
-                  placeholder="vitalik.eth or 0x..."
-                  value={recipient}
-                />
-              </label>
-              <div className={recipientValid ? "recipient-status ok" : "recipient-status bad"}>
-                {recipientValid ? "Recipient format valid" : "Enter ENS or a valid 0x address"}
-              </div>
-              <div className="address-book-row">
-                <button className="secondary" onClick={() => setRecipient("0x3CF9BfCD655Bed4A079a6d8a45686a4591c7d76c")} type="button">Demo Investor 1</button>
-                <button className="secondary" onClick={() => setRecipient("0xEE3eA6f858aE84dD6959f241DfC257a2f8fA3f53")} type="button">Demo Investor 2</button>
-              </div>
-              <div className="trade-amount-box">
-                <label htmlFor="transfer-amount">Encrypted amount</label>
-                <input id="transfer-amount" inputMode="decimal" onChange={(event) => setAmount(event.target.value)} value={amount} />
-              </div>
-              <div className="privacy-notice">🔒 Amount hidden on-chain</div>
-              <div className="recipient-status ok">Recipient KYC check: ✅ eligible for confidential transfer</div>
-              <button disabled={!recipientValid || recipient.length === 0} type="button">Review Private Transfer</button>
-            </div>
-          ) : null}
-
-          {tradeMode === "Swap" ? (
-            <div className="trade-form-card">
-              <TradeAssetSelect label="From" selectedSymbol={selectedAsset.symbol} onChange={setSelectedSymbol} />
-              <button className="swap-reverse-button" onClick={reverseSwap} type="button">↓↑</button>
-              <TradeAssetSelect label="To" selectedSymbol={toAsset.symbol} onChange={setToSymbol} />
-              <div className="trade-info-grid">
-                <span>Exchange rate</span>
-                <strong>1 {selectedAsset.symbol} = {exchangeRate.toFixed(4)} {toAsset.symbol}</strong>
-                <span>Price impact</span>
-                <strong className="change-up">0.18%</strong>
-              </div>
-              <div className="slippage-row">
-                <span>Slippage tolerance</span>
-                {["0.1", "0.5", "1"].map((item) => (
-                  <button className={slippage === item ? "active" : undefined} key={item} onClick={() => setSlippage(item)} type="button">
-                    {item}%
-                  </button>
-                ))}
-                <input aria-label="Custom slippage" onChange={(event) => setSlippage(event.target.value)} placeholder="Custom" value={["0.1", "0.5", "1"].includes(slippage) ? "" : slippage} />
-              </div>
-              <div className="privacy-notice">🔒 Trade executes privately inside TEE</div>
-              <div className="quick-pairs">
-                {[
-                  ["cAAPL", "cUSDC"],
-                  ["cBTC", "cETH"],
-                  ["cGOLD", "cUSDT"],
-                  ["cETH", "cUSDC"],
-                ].map(([from, to]) => (
-                  <button
-                    className="secondary"
-                    key={`${from}-${to}`}
-                    onClick={() => {
-                      setSelectedSymbol(from);
-                      setToSymbol(to);
-                    }}
-                    type="button"
-                  >
-                    {from} → {to}
-                  </button>
-                ))}
-              </div>
-              <button type="button">Review Private Swap</button>
-            </div>
-          ) : null}
-
-          <AssetActionPanel asset={selectedAsset} />
+          {mode === "Wrap" ? <WrapTab selectedAsset={selectedAsset} setSelectedSymbol={setSelectedSymbol} /> : null}
+          {mode === "Transfer" ? <TransferTab selectedAsset={selectedAsset} setSelectedSymbol={setSelectedSymbol} /> : null}
+          {mode === "Unwrap" ? <UnwrapTab selectedAsset={selectedAsset} setSelectedSymbol={setSelectedSymbol} /> : null}
         </div>
 
         <aside className="trade-market-panel">
@@ -1069,41 +963,6 @@ function TradeTab({
         </aside>
       </section>
     </div>
-  );
-}
-
-function TradeAssetSelect({
-  holdingsOnly,
-  label,
-  onChange,
-  selectedSymbol,
-}: {
-  holdingsOnly?: boolean;
-  label: string;
-  onChange: (symbol: string) => void;
-  selectedSymbol: string;
-}) {
-  const assets = holdingsOnly ? portfolioHoldings().map((holding) => holding.asset) : deployedAssets;
-  return (
-    <label className="trade-asset-select">
-      {label}
-      <select onChange={(event) => onChange(event.target.value)} value={selectedSymbol}>
-        {deployedAssetCategories.map((category) => (
-          <optgroup key={category} label={categoryLabels[category]}>
-            {assets
-              .filter((asset) => asset.category === category)
-              .map((asset) => {
-                const market = marketDisplay(asset);
-                return (
-                  <option key={asset.symbol} value={asset.symbol}>
-                    {assetBadge(asset)} {asset.symbol} · {formatMarketPrice(market.price)} · {asset.requiresKYC ? "KYC" : "Open"}
-                  </option>
-                );
-              })}
-          </optgroup>
-        ))}
-      </select>
-    </label>
   );
 }
 
@@ -1704,7 +1563,7 @@ function CollateralModal({ kind, onClose, selectedAsset }: { kind: "add" | "borr
         {kind === "add" ? <TradeAssetSelect label="Collateral assets" selectedSymbol={selectedAsset.symbol} onChange={() => undefined} /> : null}
         {kind === "borrow" ? (
           <>
-            <TradeAssetSelect label="Loan asset" selectedSymbol="cUSDC" onChange={() => undefined} holdingsOnly />
+            <TradeAssetSelect label="Loan asset" selectedSymbol="cUSDC" onChange={() => undefined} />
             <label className="trade-field">Encrypted amount<input placeholder="🔒 0.00" /></label>
             <div className="privacy-notice">Collateral proof step: TEE verifies sufficiency without exposing balance.</div>
             <div className="recipient-status ok">Health preview after borrow: Safe</div>
