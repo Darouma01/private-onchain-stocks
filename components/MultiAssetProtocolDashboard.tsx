@@ -27,6 +27,7 @@ import { erc20Abi } from "@/lib/onchain";
 import { AddressDisplay, AssetSelector, ConfidentialBadge, EmptyState, KYCBadge, NetworkBadge, PriceDisplay, SkeletonRows, TierBadge } from "@/components/SharedUi";
 import { getCachedAssetPrice, usePrices } from "@/lib/prices/usePrices";
 import { getUtilityText } from "@/lib/utilities/getUtilityText";
+import { SparklineChart } from "@/components/SparklineChart";
 
 type Tab = "Markets" | "Portfolio" | "Trade" | "Dividends" | "Governance" | "Collateral" | "AI Tools";
 type MarketSortKey = "symbol" | "name" | "category" | "price" | "change" | "kyc";
@@ -55,6 +56,12 @@ type GovernanceProposal = {
   status: "Active" | "Closed" | "Passed" | "Failed";
   title: string;
   voters: number;
+};
+
+type SparklineState = {
+  error: string | null;
+  isLoading: boolean;
+  sparklines: Record<string, number[]>;
 };
 
 type AiChatMessage = {
@@ -218,6 +225,11 @@ function MarketsTab({
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [detailAsset, setDetailAsset] = useState<DeployedAsset | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [sparklineState, setSparklineState] = useState<SparklineState>({
+    error: null,
+    isLoading: true,
+    sparklines: {},
+  });
 
   useEffect(() => {
     try {
@@ -226,6 +238,41 @@ function MarketsTab({
     } catch {
       setFavorites([]);
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSparklines() {
+      try {
+        const response = await fetch("/api/sparklines", { cache: "no-store" });
+        const payload = (await response.json()) as {
+          sparklines?: Record<string, { prices: number[]; symbol: string }>;
+        };
+        if (!response.ok) throw new Error("Sparkline data unavailable");
+        if (cancelled) return;
+
+        setSparklineState({
+          error: null,
+          isLoading: false,
+          sparklines: Object.fromEntries(
+            Object.entries(payload.sparklines ?? {}).map(([symbol, item]) => [symbol, item.prices]),
+          ),
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setSparklineState((current) => ({
+          error: error instanceof Error ? error.message : "Sparkline data unavailable",
+          isLoading: false,
+          sparklines: current.sparklines,
+        }));
+      }
+    }
+
+    void loadSparklines();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const sortedAssets = useMemo(() => {
@@ -333,6 +380,8 @@ function MarketsTab({
                   onDetails={() => setDetailAsset(asset)}
                   onSelect={() => setSelectedSymbol(asset.symbol)}
                   onToggleFavorite={() => toggleFavorite(asset.symbol)}
+                  sparklineData={sparklineState.sparklines[asset.symbol]}
+                  sparklineLoading={sparklineState.isLoading}
                 />
               ))}
             </tbody>
@@ -394,6 +443,8 @@ function AssetTableRow({
   onDetails,
   onSelect,
   onToggleFavorite,
+  sparklineData,
+  sparklineLoading,
 }: {
   asset: DeployedAsset;
   favorite: boolean;
@@ -402,8 +453,10 @@ function AssetTableRow({
   onDetails: () => void;
   onSelect: () => void;
   onToggleFavorite: () => void;
+  sparklineData?: number[];
+  sparklineLoading: boolean;
 }) {
-  const market = marketDisplay(asset);
+  const market = marketDisplay(asset, sparklineData);
   return (
     <tr className={isSelected ? "selected" : undefined}>
       <td className="index-cell">{index}</td>
@@ -435,7 +488,7 @@ function AssetTableRow({
         </span>
       </td>
       <td>
-        <Sparkline values={market.sparkline} positive={market.change >= 0} />
+        {sparklineLoading ? <span className="sparkline-skeleton" aria-label="Loading 7 day price history" /> : <SparklineChart data={market.sparkline} positive={market.change >= 0} />}
       </td>
       <td>
         <span className={asset.requiresKYC ? "kyc-pill required" : "kyc-pill open"}>
@@ -454,25 +507,6 @@ function AssetTableRow({
         </div>
       </td>
     </tr>
-  );
-}
-
-function Sparkline({ values, positive }: { values: number[]; positive: boolean }) {
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const points = values
-    .map((value, index) => {
-      const x = (index / (values.length - 1)) * 80;
-      const y = 26 - ((value - min) / range) * 22;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-
-  return (
-    <svg className="sparkline" role="img" viewBox="0 0 80 30" aria-label="7 day price history">
-      <polyline fill="none" points={points} stroke={positive ? "#10B981" : "#EF4444"} strokeLinecap="round" strokeWidth="2" />
-    </svg>
   );
 }
 
@@ -2293,11 +2327,12 @@ function insightMetrics(asset: DeployedAsset) {
   ];
 }
 
-function marketDisplay(asset: DeployedAsset) {
+function marketDisplay(asset: DeployedAsset, historicalPrices?: number[]) {
   const quote = getCachedAssetPrice(asset.symbol);
   const basePrice = quote?.price ?? 0;
   const change = quote?.change24h ?? 0;
-  const sparkline = Array.from({ length: 10 }, () => basePrice);
+  const fallbackPrice = basePrice > 0 ? basePrice : 1;
+  const sparkline = historicalPrices && historicalPrices.length > 0 ? historicalPrices : Array.from({ length: 7 }, () => fallbackPrice);
   const tone =
     asset.category === AssetCategory.STOCK_US
       ? "us"

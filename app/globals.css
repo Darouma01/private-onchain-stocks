@@ -1422,6 +1422,16 @@ textarea:focus {
   width: 80px;
 }
 
+.sparkline-skeleton {
+  animation: skeleton-shimmer 1.4s linear infinite;
+  background: linear-gradient(90deg, #111318 0%, #1a1d26 45%, #111318 100%);
+  background-size: 220% 100%;
+  border-radius: 4px;
+  display: block;
+  height: 32px;
+  width: 80px;
+}
+
 .table-actions {
   display: flex;
   gap: 6px;
