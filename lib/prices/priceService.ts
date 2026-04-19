@@ -1,8 +1,10 @@
+import { fallbackAssetPrice, fallbackPriceMap, LAST_KNOWN_PRICES } from "@/lib/prices/fallbackPrices";
+
 export interface AssetPrice {
   symbol: string;
   price: number;
   change24h: number;
-  source: "coingecko" | "yahoo" | "stooq";
+  source: "coingecko" | "last-known" | "stooq" | "yahoo";
   lastUpdated: number;
 }
 
@@ -159,26 +161,31 @@ export async function fetchCommodityPrices(symbols = Object.keys(commoditySymbol
 
 export async function fetchAllPrices(): Promise<Record<string, AssetPrice>> {
   const [crypto, stablecoins, stocks, commodities] = await Promise.all([
-    fetchCryptoPrices(),
-    fetchStablecoinPrices(),
-    fetchStockPrices(),
-    fetchCommodityPrices(),
+    safePriceGroup(fetchCryptoPrices),
+    safePriceGroup(fetchStablecoinPrices),
+    safePriceGroup(fetchStockPrices),
+    safePriceGroup(fetchCommodityPrices),
   ]);
 
-  const prices = {
+  const livePrices = {
     ...stocks,
     ...commodities,
     ...crypto,
     ...stablecoins,
   };
+  const prices = fallbackPriceMap();
 
-  if (prices.cGOLD) {
-    prices.cXAUT = {
-      ...prices.cGOLD,
-      symbol: "cXAUT",
-      source: prices.cGOLD.source,
-    };
+  for (const symbol of Object.keys(LAST_KNOWN_PRICES)) {
+    const live = livePrices[symbol];
+    prices[symbol] = isUsableLivePrice(symbol, live) ? live : fallbackAssetPrice(symbol);
   }
+
+  prices.cUSDC = fallbackAssetPrice("cUSDC");
+  prices.cUSDT = fallbackAssetPrice("cUSDT");
+  prices.cDAI = fallbackAssetPrice("cDAI");
+  prices.cEURC = fallbackAssetPrice("cEURC");
+  prices.cGBPT = fallbackAssetPrice("cGBPT");
+  prices.cXAUT = { ...(prices.cGOLD ?? fallbackAssetPrice("cXAUT")), symbol: "cXAUT" };
 
   return prices;
 }
@@ -187,7 +194,10 @@ async function fetchCoinGeckoPrices(mapping: Record<string, string>, fallbackMap
   const ids = Object.values(mapping).join(",");
   const response = await fetch(
     `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`,
-    { next: { revalidate: 60 } },
+    {
+      headers: { Accept: "application/json", "User-Agent": "private-onchain-stocks/1.0" },
+      next: { revalidate: 60 },
+    },
   );
   if (!response.ok) throw new Error(`CoinGecko price fetch failed: ${response.status}`);
 
@@ -212,7 +222,10 @@ async function fetchCoinGeckoPrices(mapping: Record<string, string>, fallbackMap
     const fallbackIds = missingFallbacks.map(([, id]) => id).join(",");
     const fallbackResponse = await fetch(
       `https://api.coingecko.com/api/v3/simple/price?ids=${fallbackIds}&vs_currencies=usd&include_24hr_change=true`,
-      { next: { revalidate: 60 } },
+      {
+        headers: { Accept: "application/json", "User-Agent": "private-onchain-stocks/1.0" },
+        next: { revalidate: 60 },
+      },
     );
     if (fallbackResponse.ok) {
       const fallbackPayload = (await fallbackResponse.json()) as Record<string, { usd?: number; usd_24h_change?: number }>;
@@ -296,6 +309,7 @@ async function fetchStooqPrice(assetSymbol: string): Promise<AssetPrice | null> 
   if (!stooqSymbol) return null;
 
   const response = await fetch(`https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbol)}&f=sd2t2ohlcv&h&e=json`, {
+    headers: { Accept: "application/json", "User-Agent": "private-onchain-stocks/1.0" },
     next: { revalidate: 60 },
   });
   if (!response.ok) return null;
@@ -318,6 +332,23 @@ async function fetchStooqPrice(assetSymbol: string): Promise<AssetPrice | null> 
 
 function isNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+async function safePriceGroup(fetcher: () => Promise<Record<string, AssetPrice>>) {
+  try {
+    return await fetcher();
+  } catch {
+    return {};
+  }
+}
+
+function isUsableLivePrice(symbol: string, price?: AssetPrice): price is AssetPrice {
+  if (!price || !isNumber(price.price) || price.price <= 0) return false;
+  if (symbol === "cSAMSUNG" && price.price > 500) return false;
+  if (symbol === "cRELIANCE" && price.price > 500) return false;
+  if (symbol === "cGOLD" && price.price > 10_000) return false;
+  if (symbol === "cSILVER" && price.price > 500) return false;
+  return true;
 }
 
 function findLastNumber(values?: Array<number | null>) {

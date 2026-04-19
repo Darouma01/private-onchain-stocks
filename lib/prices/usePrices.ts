@@ -2,6 +2,7 @@
 
 import { createContext, createElement, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import type { AssetPrice } from "@/lib/prices/priceService";
+import { fallbackPriceMap } from "@/lib/prices/fallbackPrices";
 
 type PricesContextValue = {
   prices: Record<string, AssetPrice>;
@@ -11,10 +12,10 @@ type PricesContextValue = {
 };
 
 const PricesContext = createContext<PricesContextValue | null>(null);
-let cachedPrices: Record<string, AssetPrice> = {};
+let cachedPrices: Record<string, AssetPrice> = fallbackPriceMap();
 
 export function PricesProvider({ children }: { children: ReactNode }) {
-  const [prices, setPrices] = useState<Record<string, AssetPrice>>({});
+  const [prices, setPrices] = useState<Record<string, AssetPrice>>(cachedPrices);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
