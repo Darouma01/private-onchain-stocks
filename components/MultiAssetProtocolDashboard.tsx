@@ -34,6 +34,8 @@ import type { TradeMode } from "@/components/trade/tradeTypes";
 import { ContractAuditor } from "@/components/ai/ContractAuditor";
 import { LLMAssistant } from "@/components/ai/LLMAssistant";
 import { OnChainInsights } from "@/components/ai/OnChainInsights";
+import { AssetDetailDrawer } from "@/components/markets/AssetDetailDrawer";
+import { AssetSearch } from "@/components/markets/AssetSearch";
 
 type Tab = "Markets" | "Portfolio" | "Trade" | "Dividends" | "Governance" | "Collateral" | "AI Tools";
 type MarketSortKey = "symbol" | "name" | "category" | "price" | "change" | "kyc";
@@ -99,9 +101,7 @@ export function MultiAssetProtocolDashboard({ initialTab = "Markets" }: { initia
       const matchesCategory = category === "ALL" || asset.category === category;
       const matchesQuery =
         normalized.length === 0 ||
-        asset.symbol.toLowerCase().includes(normalized) ||
-        asset.name.toLowerCase().includes(normalized) ||
-        asset.country?.toLowerCase().includes(normalized);
+        assetMatchesQuery(asset, normalized);
       return matchesCategory && matchesQuery;
     });
   }, [category, query]);
@@ -344,15 +344,7 @@ function MarketsTab({
         <MarketStat label="Active holders" value="Registry" change="Live checks" tone="good" />
       </div>
 
-      <div className="market-toolbar">
-        <input
-          aria-label="Search deployed assets"
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search symbol, name, or country"
-          value={query}
-        />
-        <span className="market-result-count">{sortedAssets.length} markets</span>
-      </div>
+      <AssetSearch onQueryChange={setQuery} query={query} resultCount={sortedAssets.length} totalCount={deployedAssets.length} />
 
       <div className="market-pill-tabs" role="tablist" aria-label="Asset categories">
         {categoryPills.map((item) => (
@@ -373,7 +365,7 @@ function MarketsTab({
 
       <div className="market-table-shell">
         {sortedAssets.length === 0 ? (
-          <EmptyState action="View Markets →" href="#markets" text="Try a different search term or category filter." title="No markets found" />
+          <EmptyState action="Clear search →" href="#markets" text={query ? `No results for ${query}` : "Try a different search term or category filter."} title="No markets found" />
         ) : (
           <table className="market-table">
             <thead>
@@ -413,13 +405,17 @@ function MarketsTab({
 
       <AssetActionPanel asset={selectedAsset} />
       {detailAsset ? (
-        <AssetDetailPanel
+        <AssetDetailDrawer
           asset={detailAsset}
+          change={marketDisplay(detailAsset, sparklineState.sparklines[detailAsset.symbol]).change}
           onClose={() => setDetailAsset(null)}
-          onSelect={() => {
+          onWrap={() => {
             openTrade(detailAsset, "Wrap");
             setDetailAsset(null);
           }}
+          price={marketDisplay(detailAsset, sparklineState.sparklines[detailAsset.symbol]).price}
+          sparklineData={marketDisplay(detailAsset, sparklineState.sparklines[detailAsset.symbol]).sparkline}
+          tone={marketDisplay(detailAsset, sparklineState.sparklines[detailAsset.symbol]).tone}
         />
       ) : null}
     </div>
@@ -434,6 +430,19 @@ function MarketStat({ label, value, change, tone }: { label: string; value: stri
       <small>{change}</small>
     </div>
   );
+}
+
+function assetMatchesQuery(asset: DeployedAsset, normalizedQuery: string) {
+  if (asset.symbol.toLowerCase().includes(normalizedQuery)) return true;
+  if (categoryLabels[asset.category].toLowerCase().includes(normalizedQuery)) return true;
+  if (asset.category.toLowerCase().includes(normalizedQuery)) return true;
+  if (asset.country?.toLowerCase().includes(normalizedQuery)) return true;
+
+  const searchableWords = `${asset.name} ${asset.complianceNotes}`
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  return searchableWords.some((word) => word === normalizedQuery);
 }
 
 function SortableHeader({
@@ -531,96 +540,6 @@ function AssetTableRow({
         </div>
       </td>
     </tr>
-  );
-}
-
-function AssetDetailPanel({ asset, onClose, onSelect }: { asset: DeployedAsset; onClose: () => void; onSelect: () => void }) {
-  const [chartRange, setChartRange] = useState<"1D" | "7D" | "30D">("7D");
-  const market = marketDisplay(asset);
-  const chartValues = chartRange === "1D" ? market.sparkline.slice(-6) : chartRange === "7D" ? market.sparkline : [...market.sparkline, ...market.sparkline].slice(0, 14);
-  const chartData = chartValues.map((value, index) => ({ label: `${index + 1}`, value }));
-
-  async function copyAddress(value: string) {
-    await navigator.clipboard.writeText(value);
-  }
-
-  return (
-    <div className="asset-drawer-overlay" role="dialog" aria-modal="true" aria-label={`${asset.symbol} asset details`}>
-      <aside className="asset-drawer">
-        <div className="drawer-header">
-          <div className="asset-cell">
-            <span className={`asset-token-icon large ${market.tone}`}>{assetBadge(asset)}</span>
-            <div>
-              <span className="muted">{asset.country ?? "Global"} · {categoryLabels[asset.category]}</span>
-              <h3>{asset.symbol} · {asset.name}</h3>
-            </div>
-          </div>
-          <button className="ghost-button close-button" onClick={onClose} type="button">Close</button>
-        </div>
-
-        <div className="drawer-price-row">
-          <strong>{formatMarketPrice(market.price)}</strong>
-          <span className={market.change >= 0 ? "change-up" : "change-down"}>
-            {market.change >= 0 ? "▲" : "▼"} {Math.abs(market.change).toFixed(2)}%
-          </span>
-        </div>
-
-        <div className="range-tabs">
-          {(["1D", "7D", "30D"] as const).map((item) => (
-            <button className={chartRange === item ? "active" : undefined} key={item} onClick={() => setChartRange(item)} type="button">
-              {item}
-            </button>
-          ))}
-        </div>
-        <div className="drawer-chart">
-          <ResponsiveContainer height={180} width="100%">
-            <LineChart data={chartData} margin={{ bottom: 8, left: 0, right: 12, top: 10 }}>
-              <XAxis dataKey="label" hide />
-              <YAxis domain={["dataMin", "dataMax"]} hide />
-              <Tooltip
-                contentStyle={{ background: "#111318", border: "1px solid #2A2D3A", borderRadius: 8, color: "#F8FAFC" }}
-                formatter={(value) => [formatMarketPrice(Number(value)), asset.symbol]}
-                labelFormatter={() => chartRange}
-              />
-              <Line
-                dataKey="value"
-                dot={false}
-                isAnimationActive={false}
-                stroke={market.change >= 0 ? "#10B981" : "#EF4444"}
-                strokeWidth={3}
-                type="monotone"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="drawer-section">
-          <strong>Contract addresses</strong>
-          <div className="copy-row">
-            <span>Base</span>
-            <code>{shortAddress(asset.baseAddress)}</code>
-            <button className="secondary" onClick={() => void copyAddress(asset.baseAddress)} type="button">Copy</button>
-            <a href={addressUrl(asset.baseAddress)} rel="noreferrer" target="_blank">Arbiscan</a>
-          </div>
-          <div className="copy-row">
-            <span>Wrapper</span>
-            <code>{shortAddress(asset.wrapperAddress)}</code>
-            <button className="secondary" onClick={() => void copyAddress(asset.wrapperAddress)} type="button">Copy</button>
-            <a href={addressUrl(asset.wrapperAddress)} rel="noreferrer" target="_blank">Arbiscan</a>
-          </div>
-        </div>
-
-        <div className="drawer-section">
-          <strong>KYC requirement</strong>
-          <p className="muted">{asset.requiresKYC ? asset.complianceNotes : "This market is open for wrapping and confidential transfer without KYC gating."}</p>
-        </div>
-
-        <div className="drawer-actions">
-          <button onClick={onSelect} type="button">Wrap this asset</button>
-          <a className="button-link" href={addressUrl(asset.wrapperAddress)} rel="noreferrer" target="_blank">View on Arbiscan</a>
-        </div>
-      </aside>
-    </div>
   );
 }
 

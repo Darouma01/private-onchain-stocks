@@ -1180,6 +1180,10 @@ textarea:focus {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.asset-search-input {
+  position: relative;
+}
+
 .market-toolbar input {
   background: #0f1117;
   border: 1px solid var(--line);
@@ -1187,6 +1191,36 @@ textarea:focus {
   color: var(--ink);
   min-height: 44px;
   padding: 0 14px;
+  width: 100%;
+}
+
+.asset-search-input input {
+  padding-right: 42px;
+}
+
+.search-clear-button {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 20px;
+  height: 32px;
+  padding: 0;
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 32px;
+}
+
+.sr-only {
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
 .market-result-count {
@@ -1507,6 +1541,13 @@ textarea:focus {
 .drawer-header,
 .drawer-price-row {
   justify-content: space-between;
+}
+
+.drawer-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .drawer-header h3 {
