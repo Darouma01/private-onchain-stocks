@@ -2163,6 +2163,50 @@ textarea:focus {
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.encrypted-reveal-card,
+.revealed-balance-card {
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.encrypted-reveal-card {
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.32);
+}
+
+.encrypted-reveal-card p,
+.revealed-balance-card p {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+.encrypted-reveal-card strong,
+.revealed-balance-card strong {
+  color: var(--ink);
+  display: block;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin-top: 4px;
+}
+
+.revealed-balance-card {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.42);
+}
+
+.revealed-balance-card span {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.revealed-balance-card a,
+.encrypted-reveal-card a {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
 .trade-steps {
   align-items: center;
   color: var(--muted);
