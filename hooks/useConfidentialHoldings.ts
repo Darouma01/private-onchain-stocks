@@ -4,16 +4,13 @@ import { useMemo } from "react";
 import { useAccount, useReadContracts } from "wagmi";
 import { confidentialWrapperAbi } from "@/lib/contracts";
 import { deployedAssets } from "@/lib/deployed-assets";
-import { getCachedAssetPrice } from "@/lib/prices/usePrices";
 
 const EMPTY_HANDLE = "0x0000000000000000000000000000000000000000000000000000000000000000";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 
 export type ConfidentialHolding = {
   asset: (typeof deployedAssets)[number];
-  estimatedValue: number | null;
   handle: `0x${string}`;
-  price: number | null;
 };
 
 export function useConfidentialHoldings() {
@@ -27,6 +24,7 @@ export function useConfidentialHoldings() {
     })),
     query: {
       enabled: Boolean(address),
+      refetchInterval: 30_000,
     },
   });
 
@@ -35,16 +33,7 @@ export function useConfidentialHoldings() {
       const result = balanceHandles.data?.[index];
       const handle = result?.status === "success" ? (result.result as `0x${string}` | undefined) : undefined;
       if (!handle || handle === EMPTY_HANDLE) return [];
-
-      const quote = getCachedAssetPrice(asset.symbol);
-      return [
-        {
-          asset,
-          estimatedValue: quote ? quote.price : null,
-          handle,
-          price: quote?.price ?? null,
-        },
-      ];
+      return [{ asset, handle }];
     });
   }, [balanceHandles.data]);
 

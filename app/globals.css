@@ -1671,6 +1671,36 @@ textarea:focus {
   gap: 18px;
 }
 
+.portfolio-state-card,
+.portfolio-summary-card {
+  background: #111318;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+
+.portfolio-state-card strong,
+.portfolio-summary-card strong {
+  color: var(--ink);
+}
+
+.portfolio-summary-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.portfolio-summary-card p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.modal-form {
+  margin-top: 16px;
+}
+
 .portfolio-hero {
   align-items: end;
   background:
@@ -1999,6 +2029,10 @@ textarea:focus {
 }
 
 @media (max-width: 760px) {
+  .portfolio-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
   .portfolio-hero {
     align-items: stretch;
     flex-direction: column;

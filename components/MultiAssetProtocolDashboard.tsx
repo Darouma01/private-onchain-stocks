@@ -2,8 +2,8 @@
 
 import { FormEvent, type CSSProperties, useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { encodeFunctionData, formatEther, parseEther } from "viem";
-import { useAccount, usePublicClient, useReadContract, useWaitForTransactionReceipt, useWalletClient, useWriteContract } from "wagmi";
+import { formatEther, parseEther } from "viem";
+import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { AssetCategory } from "@/deploy/assets.config";
 import { useSelectedAsset } from "@/hooks/useSelectedAsset";
 import {
@@ -36,11 +36,7 @@ import { LLMAssistant } from "@/components/ai/LLMAssistant";
 import { OnChainInsights } from "@/components/ai/OnChainInsights";
 import { AssetDetailDrawer } from "@/components/markets/AssetDetailDrawer";
 import { AssetSearch } from "@/components/markets/AssetSearch";
-import { useConfidentialHoldings } from "@/hooks/useConfidentialHoldings";
-import { PortfolioHero } from "@/components/portfolio/PortfolioHero";
-import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
-import { ActivityFeed } from "@/components/portfolio/ActivityFeed";
-import { TierCard } from "@/components/portfolio/TierCard";
+import { PortfolioSection } from "@/components/portfolio/PortfolioSection";
 
 type Tab = "Markets" | "Portfolio" | "Trade" | "Dividends" | "Governance" | "Collateral" | "AI Tools";
 type MarketSortKey = "symbol" | "name" | "category" | "price" | "change" | "kyc";
@@ -203,7 +199,7 @@ export function MultiAssetProtocolDashboard({ initialTab = "Markets" }: { initia
           openTrade={openTrade}
         />
       ) : null}
-      {tab === "Portfolio" ? <PortfolioTab onOpenTrade={openTrade} selectedAsset={selectedAsset} /> : null}
+      {tab === "Portfolio" ? <PortfolioTab selectedAsset={selectedAsset} /> : null}
       {tab === "Trade" ? <TradeTab mode={tradeMode} selectedAsset={selectedAsset} setMode={setTradeMode} setSelectedSymbol={setSelectedSymbol} /> : null}
       {tab === "Dividends" ? <DividendsTab selectedAsset={selectedAsset} /> : null}
       {tab === "Governance" ? <GovernanceTab selectedAsset={selectedAsset} /> : null}
@@ -536,114 +532,11 @@ function AssetTableRow({
 }
 
 function PortfolioTab({
-  onOpenTrade,
-  selectedAsset,
+  selectedAsset: _selectedAsset,
 }: {
-  onOpenTrade: (asset: DeployedAsset, mode: TradeMode) => void;
   selectedAsset: DeployedAsset;
 }) {
-  const { isConnected } = useAccount();
-  const publicClient = usePublicClient();
-  const walletClient = useWalletClient();
-  const { holdings, isLoading, refetch } = useConfidentialHoldings();
-  const [lastUpdated, setLastUpdated] = useState("Just now");
-  const [revealedBalances, setRevealedBalances] = useState<Record<string, bigint>>({});
-  const [revealingAll, setRevealingAll] = useState(false);
-
-  useEffect(() => {
-    setLastUpdated(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-  }, [holdings.length]);
-
-  const totalValue = useMemo(() => {
-    const values = holdings.flatMap((holding) => {
-      const revealed = revealedBalances[holding.asset.symbol];
-      if (revealed === undefined || holding.price === null) return [];
-      return [Number(formatEther(revealed)) * holding.price];
-    });
-    if (values.length !== holdings.length || values.length === 0) return null;
-    return values.reduce((sum, value) => sum + value, 0);
-  }, [holdings, revealedBalances]);
-
-  async function revealAll() {
-    if (!walletClient.data || !publicClient || holdings.length === 0) return;
-    setRevealingAll(true);
-    const nextBalances: Record<string, bigint> = {};
-
-    try {
-      for (const holding of holdings) {
-        const owner = walletClient.data.account.address;
-        const data = encodeFunctionData({
-          abi: confidentialWrapperAbi,
-          functionName: "decryptBalance",
-          args: [owner, "0x"],
-        });
-        const hash = await walletClient.data.sendTransaction({
-          account: owner,
-          data,
-          to: holding.asset.wrapperAddress,
-        });
-        await publicClient.waitForTransactionReceipt({ hash });
-        const amount = await publicClient.readContract({
-          account: owner,
-          address: holding.asset.wrapperAddress,
-          abi: confidentialWrapperAbi,
-          functionName: "decryptBalance",
-          args: [owner, "0x"],
-        });
-        nextBalances[holding.asset.symbol] = amount;
-      }
-      setRevealedBalances(nextBalances);
-      await refetch();
-    } finally {
-      setRevealingAll(false);
-    }
-  }
-
-  return (
-    <div className="portfolio-dashboard">
-      <PortfolioHero
-        canRevealAll={isConnected && holdings.length > 0}
-        isRevealingAll={revealingAll}
-        lastUpdatedLabel={lastUpdated}
-        onHideAll={() => setRevealedBalances({})}
-        onRevealAll={() => void revealAll()}
-        revealedCount={Object.keys(revealedBalances).length}
-        totalHoldings={holdings.length}
-        totalValue={totalValue}
-      />
-
-      <section className="portfolio-panel">
-        <div className="row">
-          <div>
-            <strong>Confidential Holdings</strong>
-            <p className="muted">Holdings load from confidential wrapper balance handles, not base token balances.</p>
-          </div>
-          <span className="status-dot neutral">{isLoading ? "Loading..." : `${holdings.length} positions`}</span>
-        </div>
-        <HoldingsTable
-          holdings={holdings}
-          onTransfer={(asset) => onOpenTrade(asset, "Transfer")}
-          onUnwrap={(asset) => onOpenTrade(asset, "Unwrap")}
-          onValueReveal={(symbol, amount) =>
-            setRevealedBalances((current) => {
-              const next = { ...current };
-              if (amount === null) delete next[symbol];
-              else next[symbol] = amount;
-              return next;
-            })
-          }
-          revealedBalances={revealedBalances}
-        />
-      </section>
-
-      <section className="portfolio-lower-grid">
-        <TierCard confidentialAssetCount={holdings.length} />
-        <ActivityFeed />
-      </section>
-
-      <AssetActionPanel asset={selectedAsset} />
-    </div>
-  );
+  return <PortfolioSection />;
 }
 
 function TradeTab({

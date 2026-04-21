@@ -13,38 +13,40 @@ export function TierCard({ confidentialAssetCount }: { confidentialAssetCount: n
         <div>
           <span className="muted">Current tier</span>
           <strong>
-            <TierBadge tier={tier.label} /> {tier.icon}
+            {tier.badge ? <TierBadge tier={tier.badge} /> : null} {tier.label} {tier.icon}
           </strong>
         </div>
-        <span className="tier-badge">{confidentialAssetCount} assets held confidentially</span>
+        <span className="tier-badge">
+          {confidentialAssetCount} / {next?.threshold ?? confidentialAssetCount} assets
+        </span>
       </div>
       <div className="tier-progress">
         <span style={{ width: `${progress}%` }} />
       </div>
       <p className="muted">
-        {next ? `${Math.max(0, next.threshold - confidentialAssetCount)} more assets to reach ${next.label}.` : "Institutional tier unlocked."}
+        {next ? `${Math.max(0, next.threshold - confidentialAssetCount)} more to reach ${next.label}.` : "Elite tier unlocked."}
       </p>
       <div className="tier-checklist">
-        <span>✓ Confidential portfolio access</span>
-        <span>✓ Transfer and unwrap workflows</span>
-        <span className={confidentialAssetCount >= 5 ? "" : "locked"}>✓ Premium analytics tier</span>
-        <span className={confidentialAssetCount >= 10 ? "" : "locked"}>✓ Tier 3 governance access</span>
-        <span className={confidentialAssetCount >= 20 ? "" : "locked"}>✓ Institutional data room</span>
+        <span>✅ Private payments</span>
+        <span>✅ Dividend access</span>
+        <span className={confidentialAssetCount >= 5 ? "" : "locked"}>✅ Governance voting</span>
+        <span className={confidentialAssetCount >= 10 ? "" : "locked"}>✅ Institutional data room</span>
+        <span className={confidentialAssetCount >= 20 ? "" : "locked"}>✅ Elite portfolio access</span>
       </div>
     </div>
   );
 }
 
 function getTier(assetCount: number) {
-  if (assetCount >= 20) return { label: "Institutional" as const, icon: "🏛️" };
-  if (assetCount >= 10) return { label: "Tier 3" as const, icon: "🥇" };
-  if (assetCount >= 5) return { label: "Tier 2" as const, icon: "🥈" };
-  return { label: "Tier 1" as const, icon: "🥉" };
+  if (assetCount >= 20) return { label: "Elite", icon: "🏛️", badge: null };
+  if (assetCount >= 10) return { label: "Institutional", icon: "🥇", badge: "Tier 3" as const };
+  if (assetCount >= 5) return { label: "Premium", icon: "🥈", badge: "Tier 2" as const };
+  return { label: "Basic", icon: "🥉", badge: "Tier 1" as const };
 }
 
 function nextTier(assetCount: number) {
   if (assetCount < 5) return { label: "Tier 2", threshold: 5 };
-  if (assetCount < 10) return { label: "Tier 3", threshold: 10 };
-  if (assetCount < 20) return { label: "Institutional", threshold: 20 };
+  if (assetCount < 10) return { label: "Institutional", threshold: 10 };
+  if (assetCount < 20) return { label: "Elite", threshold: 20 };
   return null;
 }

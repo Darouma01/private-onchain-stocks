@@ -2,49 +2,33 @@
 
 import { formatEther, type Address } from "viem";
 import { useAccount } from "wagmi";
-import { EmptyState, KYCBadge } from "@/components/SharedUi";
+import { getCachedAssetPrice } from "@/lib/prices/usePrices";
 import { useRevealBalance } from "@/hooks/useRevealBalance";
 import { truncateHandle, type ConfidentialHolding } from "@/hooks/useConfidentialHoldings";
 
 export function HoldingsTable({
   holdings,
+  onBalanceReveal,
+  onHideBalance,
   onTransfer,
   onUnwrap,
-  onValueReveal,
   revealedBalances,
 }: {
   holdings: ConfidentialHolding[];
-  onTransfer: (asset: ConfidentialHolding["asset"]) => void;
-  onUnwrap: (asset: ConfidentialHolding["asset"]) => void;
-  onValueReveal: (symbol: string, amount: bigint | null) => void;
+  onBalanceReveal: (symbol: string, amount: bigint) => void;
+  onHideBalance: (symbol: string) => void;
+  onTransfer: (holding: ConfidentialHolding) => void;
+  onUnwrap: (holding: ConfidentialHolding) => void;
   revealedBalances: Record<string, bigint>;
 }) {
-  const { isConnected } = useAccount();
-
-  if (!isConnected) {
-    return (
-      <EmptyState
-        action="Connect Wallet"
-        href="#wallet"
-        text="Connect your wallet to view your confidential portfolio."
-        title="Wallet connection required"
-      />
-    );
-  }
-
-  if (holdings.length === 0) {
-    return <EmptyState action="Go to Trade →" href="#trade" text="Wrap any asset to get started." title="No confidential holdings yet." />;
-  }
-
   return (
     <div className="holdings-table-shell">
       <table className="holdings-table">
         <thead>
           <tr>
             <th>Asset</th>
-            <th>Name</th>
-            <th>Encrypted Balance</th>
-            <th>Est. Value</th>
+            <th>Balance</th>
+            <th>Value</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -53,9 +37,10 @@ export function HoldingsTable({
             <HoldingRow
               holding={holding}
               key={holding.asset.symbol}
+              onBalanceReveal={onBalanceReveal}
+              onHideBalance={onHideBalance}
               onTransfer={onTransfer}
               onUnwrap={onUnwrap}
-              onValueReveal={onValueReveal}
               revealedBalance={revealedBalances[holding.asset.symbol]}
             />
           ))}
@@ -67,15 +52,17 @@ export function HoldingsTable({
 
 function HoldingRow({
   holding,
+  onBalanceReveal,
+  onHideBalance,
   onTransfer,
   onUnwrap,
-  onValueReveal,
   revealedBalance,
 }: {
   holding: ConfidentialHolding;
-  onTransfer: (asset: ConfidentialHolding["asset"]) => void;
-  onUnwrap: (asset: ConfidentialHolding["asset"]) => void;
-  onValueReveal: (symbol: string, amount: bigint | null) => void;
+  onBalanceReveal: (symbol: string, amount: bigint) => void;
+  onHideBalance: (symbol: string) => void;
+  onTransfer: (holding: ConfidentialHolding) => void;
+  onUnwrap: (holding: ConfidentialHolding) => void;
   revealedBalance?: bigint;
 }) {
   const { address } = useAccount();
@@ -84,63 +71,65 @@ function HoldingRow({
     owner: address as Address | undefined,
     wrapperAddress: holding.asset.wrapperAddress,
   });
+  const quote = getCachedAssetPrice(holding.asset.symbol);
+  const value = revealedBalance !== undefined && quote ? Number(formatEther(revealedBalance)) * quote.price : null;
 
   async function handleReveal() {
     const amount = await reveal.revealBalance();
-    onValueReveal(holding.asset.symbol, amount);
+    if (amount !== null) onBalanceReveal(holding.asset.symbol, amount);
   }
-
-  function hide() {
-    reveal.resetReveal();
-    onValueReveal(holding.asset.symbol, null);
-  }
-
-  const activeRevealed = revealedBalance ?? reveal.revealedBalance ?? null;
-  const value = activeRevealed !== null && holding.price ? Number(formatEther(activeRevealed)) * holding.price : null;
 
   return (
     <tr>
       <td>
         <div className="asset-cell">
-          <span className="asset-token-icon">{holding.asset.symbol.replace(/^c/, "").slice(0, 2)}</span>
-          <strong>{holding.asset.symbol}</strong>
-        </div>
-      </td>
-      <td className="name-cell">
-        <div className="stack tight">
-          <span>{holding.asset.name}</span>
-          <div className="row">
-            <span className="category-chip">{holding.asset.category.replace("STOCK_", "STOCK ")}</span>
-            <KYCBadge status={holding.asset.requiresKYC ? "Required" : "Open"} />
+          <span className="asset-token-icon">{assetGlyph(holding.asset.symbol)}</span>
+          <div>
+            <strong>{holding.asset.symbol}</strong>
+            <small>{holding.asset.name}</small>
           </div>
         </div>
       </td>
       <td>
-        <div className="hidden-value-cell">
-          <span>{activeRevealed !== null ? `🔓 ${formatEther(activeRevealed)} ${holding.asset.symbol}` : `🔒 ${truncateHandle(holding.handle)}`}</span>
-          <button className="ghost-button" disabled={reveal.isPending} onClick={() => void (activeRevealed !== null ? hide() : handleReveal())} type="button">
-            {activeRevealed !== null ? "Hide" : reveal.isPending ? "Revealing..." : "Reveal"}
+        <div className="stack tight">
+          <span>{revealedBalance !== undefined ? `🔓 ${formatEther(revealedBalance)} ${holding.asset.symbol}` : `🔒 ${truncateHandle(holding.handle)}`}</span>
+          <button
+            className="ghost-button"
+            disabled={reveal.isPending}
+            onClick={() => void (revealedBalance !== undefined ? onHideBalance(holding.asset.symbol) : handleReveal())}
+            type="button"
+          >
+            {revealedBalance !== undefined ? "Hide Balance" : reveal.isPending ? "⏳ Decrypting..." : "Reveal Balance"}
           </button>
+          {reveal.txUrl ? (
+            <a href={reveal.txUrl} rel="noreferrer" target="_blank">
+              View on Arbiscan ↗
+            </a>
+          ) : null}
         </div>
-        {reveal.txUrl ? (
-          <a href={reveal.txUrl} rel="noreferrer" target="_blank">
-            Reveal tx
-          </a>
-        ) : null}
       </td>
-      <td className="price-cell">{value === null ? "🔒 Hidden" : formatUsd(value)}</td>
+      <td>{value === null ? "🔒 Hidden" : formatUsd(value)}</td>
       <td>
         <div className="table-actions">
-          <button onClick={() => onTransfer(holding.asset)} type="button">
+          <button onClick={() => onTransfer(holding)} type="button">
             Transfer
           </button>
-          <button className="secondary" onClick={() => onUnwrap(holding.asset)} type="button">
+          <button className="secondary" onClick={() => onUnwrap(holding)} type="button">
             Unwrap
           </button>
         </div>
       </td>
     </tr>
   );
+}
+
+function assetGlyph(symbol: string) {
+  if (symbol === "cBTC") return "₿";
+  if (symbol === "cGOLD") return "🏅";
+  if (symbol.startsWith("c") && ["cAAPL", "cTSLA", "cMSFT", "cGOOGL", "cAMZN", "cNVDA", "cMETA", "cBRK", "cJPM", "cV", "cJNJ", "cWMT", "cXOM", "cBAC", "cNFLX", "cDIS", "cPFE", "cKO", "cMCD", "cGS"].includes(symbol)) {
+    return "🇺🇸";
+  }
+  return symbol.replace(/^c/, "").slice(0, 2).toUpperCase();
 }
 
 function formatUsd(value: number) {
