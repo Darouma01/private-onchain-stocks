@@ -7,7 +7,8 @@
 Private Onchain Stocks is a compliance-aware confidential stock token protocol for tokenized cAAPL, built for the iExec Vibe Coding Challenge.
 
 - Live demo: https://private-onchain-stocks.vercel.app
-- Demo video: TODO: add 4 minute max demo video link
+- Demo video: https://youtu.be/PZlrHGx9rlY
+- X post: https://x.com/Lee_ma_o/status/2046999830816342388?s=20
 - Testnet deployment: Arbitrum Sepolia, chain ID `421614`
 - Mainnet target: Arbitrum One, chain ID `42161`
 
