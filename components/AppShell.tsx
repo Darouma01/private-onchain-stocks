@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <a href={uiLinks.github} target="_blank" rel="noreferrer">
             GitHub
           </a>
-          <a href={uiLinks.demo} target="_blank" rel="noreferrer">
+          <a href={uiLinks.demoVideo} target="_blank" rel="noreferrer">
             Demo Video
           </a>
           <a href={uiLinks.docs} target="_blank" rel="noreferrer">
