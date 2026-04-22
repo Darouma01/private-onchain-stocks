@@ -50,7 +50,6 @@ export function TransferModal({
         args: [recipient as `0x${string}`, payload.handle, "0x"],
       });
       setHash(transferHash);
-      onComplete();
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -68,30 +67,46 @@ export function TransferModal({
           </button>
         </div>
         <div className="trade-form-card modal-form">
-          <div className="metric">
-            <span className="muted">From</span>
-            <strong>{holding.asset.name}</strong>
-          </div>
-          <label className="trade-field">
-            To
-            <input onChange={(event) => setRecipient(event.target.value)} placeholder="0x..." value={recipient} />
-          </label>
-          <label className="trade-field">
-            Amount
-            <input inputMode="decimal" onChange={(event) => setAmount(event.target.value)} value={amount} />
-          </label>
-          <div className="privacy-notice">
-            🔒 Amount hidden on-chain {revealedBalance === undefined ? "· Reveal first to see balance" : ""}
-          </div>
-          <button disabled={!amountWei || !isAddress(recipient) || pending} onClick={() => void submit()} type="button">
-            {pending ? "Sending..." : "Send Confidentially"}
-          </button>
           {hash ? (
-            <a href={txUrl(hash)} rel="noreferrer" target="_blank">
-              View on Arbiscan
-            </a>
-          ) : null}
-          {error ? <p className="error">{error}</p> : null}
+            <div className="stack">
+              <p className="success">✅ Sent Confidentially!</p>
+              <p className="muted">Amount hidden on-chain. Transaction visibility on Arbiscan does not expose the transferred amount.</p>
+              <a href={txUrl(hash)} rel="noreferrer" target="_blank">
+                View on Arbiscan ↗
+              </a>
+              <button
+                onClick={() => {
+                  onComplete();
+                  onClose();
+                }}
+                type="button"
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="metric">
+                <span className="muted">From</span>
+                <strong>{holding.asset.name}</strong>
+              </div>
+              <label className="trade-field">
+                To
+                <input onChange={(event) => setRecipient(event.target.value)} placeholder="0x..." value={recipient} />
+              </label>
+              <label className="trade-field">
+                Amount
+                <input inputMode="decimal" onChange={(event) => setAmount(event.target.value)} value={amount} />
+              </label>
+              <div className="privacy-notice">
+                🔒 Amount hidden on-chain {revealedBalance === undefined ? "· Reveal first to see balance" : ""}
+              </div>
+              <button disabled={!amountWei || !isAddress(recipient) || pending} onClick={() => void submit()} type="button">
+                {pending ? "Sending..." : "Send Confidentially"}
+              </button>
+              {error ? <p className="error">{error}</p> : null}
+            </>
+          )}
         </div>
       </aside>
     </div>

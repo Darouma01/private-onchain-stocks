@@ -13,7 +13,6 @@ const navItems = [
   ["🗳️", "Governance"],
   ["🏦", "Collateral"],
   ["🤖", "AI Tools"],
-  ["⚙️", "Settings"],
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
