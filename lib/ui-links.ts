@@ -2,7 +2,7 @@ import { moduleAddresses } from "@/lib/deployed-assets";
 
 export const uiLinks = {
   arbiscan: `https://sepolia.arbiscan.io/address/${moduleAddresses.AssetRegistry}`,
-  demo: "https://private-onchain-stocks.vercel.app",
+  demo: "https://youtu.be/PZlrHGx9rlY",
   demoVideo: "https://youtu.be/PZlrHGx9rlY",
   discord: "https://discord.gg/iexec",
   docs: "https://github.com/Darouma01/private-onchain-stocks/blob/main/README.md",
