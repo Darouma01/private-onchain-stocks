@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useAccount, useReadContracts } from "wagmi";
+import { useReadContracts } from "wagmi";
 import { confidentialWrapperAbi } from "@/lib/contracts";
 import { deployedAssets } from "@/lib/deployed-assets";
 
@@ -13,18 +13,17 @@ export type ConfidentialHolding = {
   handle: `0x${string}`;
 };
 
-export function useConfidentialHoldings() {
-  const { address, isConnected } = useAccount();
+export function useConfidentialHoldings(connectedAddress?: `0x${string}`, selectedAssetSymbol?: string) {
   const balanceHandles = useReadContracts({
     contracts: deployedAssets.map((asset) => ({
       address: asset.wrapperAddress,
       abi: confidentialWrapperAbi,
       functionName: "getEncryptedBalance",
-      args: [address ?? ZERO_ADDRESS],
+      args: [connectedAddress ?? ZERO_ADDRESS],
     })),
     query: {
-      enabled: Boolean(address),
-      refetchInterval: 30_000,
+      enabled: Boolean(connectedAddress),
+      refetchInterval: 15_000,
     },
   });
 
@@ -37,11 +36,42 @@ export function useConfidentialHoldings() {
     });
   }, [balanceHandles.data]);
 
+  const holdingsMap = useMemo<Record<string, string>>(
+    () =>
+      holdings.reduce<Record<string, string>>((acc, holding) => {
+        acc[holding.asset.symbol] = holding.handle;
+        return acc;
+      }, {}),
+    [holdings],
+  );
+
+  const selectedHandle = useMemo(() => {
+    if (!selectedAssetSymbol) return null;
+    return holdingsMap[selectedAssetSymbol] ?? null;
+  }, [holdingsMap, selectedAssetSymbol]);
+
+  const userTier = useMemo(() => {
+    if (holdings.length >= 20) return 4;
+    if (holdings.length >= 10) return 3;
+    if (holdings.length >= 5) return 2;
+    if (holdings.length >= 1) return 1;
+    return 0;
+  }, [holdings.length]);
+
+  const tierLabel = ["No Holdings", "Basic 🥉", "Premium 🥈", "Institutional 🥇", "Elite 🏛️"][userTier];
+
   return {
     error: balanceHandles.error,
     holdings,
-    isConnected,
+    heldAssets: holdings.map((holding) => holding.asset),
+    holdingsMap,
     isLoading: balanceHandles.isLoading,
+    allHandles: balanceHandles.data,
+    totalAssetsHeld: holdings.length,
+    userTier,
+    tierLabel,
+    holdsSelectedAsset: selectedHandle !== null,
+    selectedHandle,
     refetch: balanceHandles.refetch,
   };
 }

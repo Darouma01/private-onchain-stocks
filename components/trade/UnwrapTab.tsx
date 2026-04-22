@@ -271,20 +271,18 @@ function RevealBalanceCard({
   }
 
   const label =
-    reveal.phase === "signature"
-      ? "⏳ Confirm in wallet..."
-      : reveal.phase === "pending"
-        ? "⏳ Decrypting on-chain..."
-        : reveal.phase === "error"
-          ? "❌ Reveal failed — Try again"
-          : "Reveal encrypted balance";
+    reveal.phase === "pending"
+      ? "⏳ Reading confidential balance..."
+      : reveal.phase === "error"
+        ? "❌ Reveal failed — Try again"
+        : "Reveal encrypted balance";
 
   return (
     <div className="encrypted-reveal-card">
       <div>
         <span className="muted">Encrypted balance handle</span>
         <strong className="handle-text">{handle ? shortHandle(handle) : "None"}</strong>
-        <p>Your encrypted on-chain balance. Requires a signed transaction to authorize TEE decryption.</p>
+        <p>Your encrypted on-chain balance. The current demo wrapper exposes balance reveal through a read-only Nox disclosure call.</p>
       </div>
       <button className="ghost-button" disabled={!handle || reveal.isPending} onClick={onReveal} type="button">
         {label}

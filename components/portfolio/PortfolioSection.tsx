@@ -1,8 +1,8 @@
 "use client";
 
-import { encodeFunctionData, formatEther } from "viem";
+import { formatEther } from "viem";
 import { useEffect, useMemo, useState } from "react";
-import { useAccount, usePublicClient, useWalletClient } from "wagmi";
+import { useAccount, usePublicClient } from "wagmi";
 import { confidentialWrapperAbi } from "@/lib/contracts";
 import { getCachedAssetPrice } from "@/lib/prices/usePrices";
 import { type ConfidentialHolding, useConfidentialHoldings } from "@/hooks/useConfidentialHoldings";
@@ -16,8 +16,7 @@ import { TierCard } from "@/components/portfolio/TierCard";
 export function PortfolioSection() {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
-  const walletClient = useWalletClient();
-  const { holdings, isLoading, refetch } = useConfidentialHoldings();
+  const { holdings, isLoading, refetch } = useConfidentialHoldings(address);
   const [lastUpdated, setLastUpdated] = useState("Just now");
   const [revealedBalances, setRevealedBalances] = useState<Record<string, bigint>>({});
   const [revealingAll, setRevealingAll] = useState(false);
@@ -41,31 +40,19 @@ export function PortfolioSection() {
   }, [holdings, revealedBalances]);
 
   async function revealAll() {
-    if (!walletClient.data || !publicClient || holdings.length === 0) return;
+    if (!address || !publicClient || holdings.length === 0) return;
     setRevealingAll(true);
     const nextBalances: Record<string, bigint> = {};
 
     try {
       for (const [index, holding] of holdings.entries()) {
-        const owner = walletClient.data.account.address;
         setRevealProgress(`Revealing ${index + 1} of ${holdings.length} assets...`);
-        const data = encodeFunctionData({
-          abi: confidentialWrapperAbi,
-          functionName: "decryptBalance",
-          args: [owner, "0x"],
-        });
-        const hash = await walletClient.data.sendTransaction({
-          account: owner,
-          data,
-          to: holding.asset.wrapperAddress,
-        });
-        await publicClient.waitForTransactionReceipt({ hash });
         const amount = await publicClient.readContract({
-          account: owner,
+          account: address,
           address: holding.asset.wrapperAddress,
           abi: confidentialWrapperAbi,
           functionName: "decryptBalance",
-          args: [owner, "0x"],
+          args: [address, "0x"],
         });
         nextBalances[holding.asset.symbol] = amount;
       }

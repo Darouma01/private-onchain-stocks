@@ -4,9 +4,9 @@ import { useMemo, useState } from "react";
 import { formatEther, parseEther } from "viem";
 import { useAccount, useReadContract } from "wagmi";
 import { AssetContextPill } from "@/components/AssetContextPill";
-import { useAnyConfidentialBalance, useSelectedConfidentialBalance } from "@/components/useAnyConfidentialBalance";
 import { confidentialWrapperAbi } from "@/lib/contracts";
-import { deployedAssets, type DeployedAsset } from "@/lib/deployed-assets";
+import { type DeployedAsset } from "@/lib/deployed-assets";
+import { useConfidentialHoldings } from "@/hooks/useConfidentialHoldings";
 import { useSelectedAsset } from "@/hooks/useSelectedAsset";
 import { getUtilityText } from "@/lib/utilities/getUtilityText";
 
@@ -14,8 +14,7 @@ export function ConfidentialTokenUtilityPanel() {
   const [checkedVip, setCheckedVip] = useState(false);
   const { address } = useAccount();
   const { selectedAsset, setSelectedAsset } = useSelectedAsset();
-  const selectedBalance = useSelectedConfidentialBalance(selectedAsset);
-  const anyBalance = useAnyConfidentialBalance(deployedAssets);
+  const { holdsSelectedAsset, selectedHandle, userTier, tierLabel, totalAssetsHeld } = useConfidentialHoldings(address, selectedAsset.symbol);
   const vipBalanceThreshold = useMemo(() => vipThresholdFor(selectedAsset), [selectedAsset]);
   const text = useMemo(() => getUtilityText(selectedAsset), [selectedAsset]);
   const reveal = useReadContract({
@@ -27,25 +26,21 @@ export function ConfidentialTokenUtilityPanel() {
     query: { enabled: false },
   });
 
-  const hasEncryptedBalance = selectedBalance.hasSelectedAssetBalance;
-  const hasAnyBalance = anyBalance.hasAnyConfidentialBalance;
-  const encryptedBalance = selectedBalance.encryptedBalance;
   const revealedBalance = reveal.data;
   const isVip = typeof revealedBalance === "bigint" && revealedBalance >= vipBalanceThreshold;
-  const tierStatus = isVip ? "Tier 3" : hasEncryptedBalance ? "Tier 2" : hasAnyBalance ? "Tier 1" : "None";
 
   async function checkVipTier() {
     setCheckedVip(true);
     await reveal.refetch();
   }
 
-  const holderStatus = hasEncryptedBalance ? "Unlocked" : "Locked";
+  const holderStatus = holdsSelectedAsset ? "Unlocked" : "Locked";
   const vipStatus = !checkedVip
     ? "Private"
     : isVip
       ? "VIP unlocked"
       : "Standard tier";
-  const utilityCopy = buildUtilityCopy(selectedAsset, text, hasEncryptedBalance, hasAnyBalance, tierStatus);
+  const utilityCopy = buildUtilityCopy(selectedAsset, text, Boolean(address), holdsSelectedAsset, userTier, tierLabel);
 
   return (
     <section className="section utility-section">
@@ -56,7 +51,7 @@ export function ConfidentialTokenUtilityPanel() {
           <h2>Confidential Token Utility</h2>
           <p className="muted">{text.sectionDescription}</p>
         </div>
-        <span className={`status-dot ${hasEncryptedBalance ? "good" : "blocked"}`}>{holderStatus}</span>
+        <span className={`status-dot ${holdsSelectedAsset ? "good" : "blocked"}`}>{holderStatus}</span>
       </div>
 
       <div className="metric-grid">
@@ -71,14 +66,19 @@ export function ConfidentialTokenUtilityPanel() {
         <div className="metric-grid">
           <div className="metric">
             <span className="muted">{text.encryptedBalanceLabel}</span>
-            <strong className="handle-text">{hasEncryptedBalance && encryptedBalance ? `${encryptedBalance.slice(0, 10)}...` : "None"}</strong>
+            <strong className="handle-text">{selectedHandle ? `${selectedHandle.slice(0, 10)}...${selectedHandle.slice(-6)}` : "None"}</strong>
           </div>
           <div className="metric">
             <span className="muted">VIP access</span>
             <strong>{vipStatus}</strong>
           </div>
+          <div className="metric">
+            <span className="muted">Holder tier</span>
+            <strong>{address ? tierLabel : "Connect wallet"}</strong>
+            <p>{totalAssetsHeld} confidential assets held</p>
+          </div>
         </div>
-        <button disabled={!hasEncryptedBalance || reveal.isLoading} onClick={() => void checkVipTier()}>
+        <button disabled={!selectedHandle || reveal.isLoading} onClick={() => void checkVipTier()}>
           {reveal.isLoading ? "Checking..." : text.vipButtonText}
         </button>
         {checkedVip && revealedBalance !== undefined ? (
@@ -114,46 +114,40 @@ type UtilityCardData = {
 function buildUtilityCopy(
   asset: DeployedAsset,
   text: ReturnType<typeof getUtilityText>,
+  isConnected: boolean,
   holdsSelected: boolean,
-  holdsAny: boolean,
-  tierStatus: string,
+  userTier: number,
+  tierLabel: string,
 ): UtilityCardData[] {
   return [
     {
       icon: "🔒",
       title: "Private Payments",
-      status: holdsSelected ? "Active ✅" : holdsAny ? `Wrap ${asset.symbol} to activate` : "Wrap required",
+      status: !isConnected ? "Connect wallet" : holdsSelected ? "Active ✅" : `Wrap ${asset.symbol} to activate`,
       text: text.privatePayments,
     },
     {
       icon: "🚪",
       title: "Access Control",
-      status:
-        tierStatus === "Tier 3"
-          ? "Institutional Access 🥇"
-          : tierStatus === "Tier 2"
-            ? "Premium Access 🥈"
-            : tierStatus === "Tier 1"
-              ? "Basic Access 🥉"
-              : "Holder gate closed",
-      text: text.accessControl,
+      status: !isConnected ? "Connect wallet" : userTier === 0 ? "Holder gate closed" : `${tierLabel} — Unlocked`,
+      text: userTier > 0 ? `${text.accessControl} Private transfers, dividend eligibility, and governance voting unlock with holder status.` : text.accessControl,
     },
     {
       icon: "🎁",
       title: "Rewards / Dividends",
-      status: holdsSelected ? "Eligible — awaiting distribution" : "Not eligible",
+      status: holdsSelected ? "Eligible ✅" : "Not eligible",
       text: text.rewards,
     },
     {
       icon: "🗳️",
       title: "Governance",
-      status: holdsSelected ? "Eligible to vote" : `Hold ${asset.symbol} to vote`,
+      status: !isConnected ? "Connect wallet" : userTier === 0 ? `Hold ${asset.symbol} to vote` : "Eligible to vote ✅",
       text: text.governance,
     },
     {
       icon: "🏦",
       title: "In-App Currency / Collateral",
-      status: holdsSelected ? "Available to lock" : "No collateral",
+      status: holdsSelected ? "Available to lock ✅" : "No collateral",
       text: text.collateral,
     },
   ];
